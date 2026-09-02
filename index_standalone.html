@@ -5,7 +5,891 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EW Smart Scan — Tactical ES Receiver Scheduler</title>
   <meta name="description" content="Electronic Support Receiver Scheduler: Reinforcement Learning (Q-Learning / UCB) vs. Classical Heuristics for Radar Spectrum Surveillance." />
-  <link rel="stylesheet" href="css/style.css" />
+  <style>
+/* ─── Typography & Fonts ─────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ─── Design Tokens ───────────────────────────────────────────────────────── */
+:root {
+  /* Slate & Navy Dark Palette */
+  --bg-app:        #080c14;
+  --bg-surface:    #0e1524;
+  --bg-surface-2:  #141d30;
+  --bg-elevated:   #1a263e;
+  --bg-panel:      #11192a;
+  --bg-hover:      #1e2c47;
+  
+  /* Borders */
+  --border-subtle: rgba(148, 163, 184, 0.08);
+  --border-card:   rgba(148, 163, 184, 0.14);
+  --border-active: rgba(59, 130, 246, 0.4);
+  
+  /* Typography */
+  --text-main:     #f1f5f9;
+  --text-muted:    #94a3b8;
+  --text-dim:      #64748b;
+  --text-faint:    #475569;
+  
+  /* Tactical Accents */
+  --accent-blue:   #3b82f6;
+  --accent-blue-dim: rgba(59, 130, 246, 0.12);
+  --accent-green:  #10b981;
+  --accent-green-dim: rgba(16, 185, 129, 0.12);
+  --accent-amber:  #f59e0b;
+  --accent-amber-dim: rgba(245, 158, 11, 0.12);
+  --accent-red:    #ef4444;
+  --accent-red-dim: rgba(239, 68, 68, 0.12);
+  --accent-purple: #8b5cf6;
+  --accent-purple-dim: rgba(139, 92, 246, 0.12);
+  --accent-cyan:   #06b6d4;
+  
+  /* Typography Families */
+  --font-ui:   'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Geometry */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  
+  /* Shadows */
+  --shadow-subtle: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card:   0 4px 16px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* ─── Global Reset & Base ─────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-app);
+  color: var(--text-main);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Top Tactical App Header ─────────────────────────────────────────────── */
+.site-header {
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-card);
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.brand-badge {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
+}
+
+.brand-badge svg {
+  width: 18px;
+  height: 18px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-version {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+
+.brand-sub {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
+
+.telemetry-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+}
+
+.telemetry-tag .tag-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.telemetry-tag .tag-val {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-green-dim);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--accent-green);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.live-indicator.paused {
+  background: var(--bg-surface-2);
+  border-color: var(--border-subtle);
+  color: var(--text-dim);
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+}
+
+.live-indicator:not(.paused) .pulse-dot {
+  animation: pulse-ring 1.5s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.9); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.5; }
+  100% { transform: scale(0.9); opacity: 1; }
+}
+
+/* ─── Navigation Tabs ─────────────────────────────────────────────────────── */
+.nav-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1.5rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-card);
+  overflow-x: auto;
+}
+
+.nav-tab {
+  padding: 0.75rem 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.nav-tab svg {
+  width: 15px;
+  height: 15px;
+  color: var(--text-dim);
+  transition: color 0.15s ease;
+}
+
+.nav-tab:hover {
+  color: var(--text-main);
+}
+
+.nav-tab:hover svg {
+  color: var(--text-muted);
+}
+
+.nav-tab.active {
+  color: var(--accent-blue);
+  border-bottom-color: var(--accent-blue);
+}
+
+.nav-tab.active svg {
+  color: var(--accent-blue);
+}
+
+/* ─── Tab Content Panels ──────────────────────────────────────────────────── */
+.tab-panel {
+  display: none;
+  padding: 1.5rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.section-header {
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.section-title {
+  font-family: var(--font-ui);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.section-sub {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.15rem;
+}
+
+/* ─── Mission Control Bar ─────────────────────────────────────────────────── */
+.control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-subtle);
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.control-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-card);
+  margin: 0 0.25rem;
+}
+
+/* Tactical Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.btn-danger {
+  background: var(--bg-surface-2);
+  color: var(--accent-red);
+  border-color: var(--border-subtle);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--accent-red-dim);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-ghost {
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  border-color: var(--border-subtle);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-card);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Form Elements */
+.input-label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+.select-control {
+  background: var(--bg-surface-2);
+  color: var(--text-main);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.42rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-mono);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.select-control:focus {
+  border-color: var(--accent-blue);
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 90px;
+  height: 4px;
+  background: var(--bg-elevated);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* ─── Metric Telemetry Cards ──────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.15rem;
+  position: relative;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.kpi-card:hover {
+  border-color: var(--border-active);
+  background: var(--bg-surface-2);
+}
+
+.kpi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+}
+
+.kpi-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.kpi-value {
+  font-family: var(--font-mono);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-main);
+}
+
+.kpi-footer {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* ─── Tactical Waterfall Display ──────────────────────────────────────────── */
+.waterfall-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-card);
+}
+
+.waterfall-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.waterfall-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.waterfall-wrapper {
+  position: relative;
+  background: #040711;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+canvas#waterfall-canvas {
+  width: 100%;
+  height: 280px;
+  display: block;
+}
+
+.waterfall-legend {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* ─── Charts Layout ───────────────────────────────────────────────────────── */
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.25rem;
+}
+
+.chart-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+  height: 280px;
+  position: relative;
+}
+
+/* ─── Strategy Cards (Comparison Tab) ─────────────────────────────────────── */
+.strategy-cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.strategy-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+}
+
+.sc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.sc-name {
+  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.sc-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+/* ─── Tables (Tactical Telemetry Tables) ───────────────────────────────────── */
+.table-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+thead th {
+  background: var(--bg-surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-card);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  margin-right: 0.4rem;
+}
+
+.status-dot.active {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+}
+
+/* ─── ML Training Tab & Q-Table ───────────────────────────────────────────── */
+.ml-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.25rem;
+}
+
+.qtable-scroll {
+  overflow: auto;
+  max-height: 440px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-card);
+}
+
+.qtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.qtable th, .qtable td {
+  padding: 0.35rem;
+  text-align: center;
+  border: 1px solid rgba(148, 163, 184, 0.06);
+  min-width: 44px;
+}
+
+.qtable thead th {
+  background: var(--bg-surface-2);
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.qtable .qtable-header {
+  background: var(--bg-surface-2);
+  color: var(--text-dim);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.ml-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.meta-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem;
+}
+
+.meta-card h4 {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.85rem;
+}
+
+.epsilon-display {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent-amber);
+}
+
+.ucb-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.ucb-fill {
+  height: 6px;
+  background: var(--accent-purple);
+  border-radius: 3px;
+  flex: 1 1 auto;
+}
+
+/* ─── Theory & Technical Briefing Tab ─────────────────────────────────────── */
+.theory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1.25rem;
+}
+
+.briefing-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem;
+}
+
+.briefing-card h3 {
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.briefing-card p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: 0.85rem;
+}
+
+.briefing-card ul {
+  list-style: none;
+}
+
+.briefing-card li {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.briefing-card li::before {
+  content: '■';
+  color: var(--accent-blue);
+  font-size: 0.6rem;
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.math-formula {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--accent-cyan);
+  margin: 0.5rem 0;
+}
+
+/* ─── Responsive Adjustments ──────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .ml-grid, .compare-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .site-header {
+    padding: 0 1rem;
+    height: auto;
+    padding: 0.75rem 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  .header-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .nav-tabs {
+    padding: 0 1rem;
+  }
+  .tab-panel {
+    padding: 1rem;
+  }
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+</style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -24,7 +908,7 @@
       <div class="brand-text">
         <div class="brand-title">
           EW SMART SCAN
-          <span class="brand-version">v1.2-RELEASE</span>
+          <span class="brand-version">v2.0-STABLE</span>
         </div>
         <span class="brand-sub">Electronic Support (ES) ML Receiver Scheduling Platform</span>
       </div>
@@ -37,12 +921,16 @@
       <span class="tag-val" id="engine-status">ONLINE</span>
     </div>
     <div class="telemetry-tag">
-      <span class="tag-label">Step:</span>
-      <span class="tag-val" id="step-counter">T = 0</span>
+      <span class="tag-label">Mode:</span>
+      <span class="tag-val" id="mode-badge" style="color:var(--accent-blue)">TRAINING</span>
     </div>
     <div class="telemetry-tag">
-      <span class="tag-label">Channels:</span>
-      <span class="tag-val" id="header-channels">16 BANDS</span>
+      <span class="tag-label">PRNG Seed:</span>
+      <span class="tag-val" id="current-seed-display">42</span>
+    </div>
+    <div class="telemetry-tag">
+      <span class="tag-label">Step:</span>
+      <span class="tag-val" id="step-counter">T = 0</span>
     </div>
     <div class="live-indicator paused" id="live-badge">
       <span class="pulse-dot"></span>
@@ -63,15 +951,15 @@
   </button>
   <button class="nav-tab" data-tab="ml" role="tab">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-    Q-Learning Telemetry
+    Q-Learning & Periodic Tracker
   </button>
   <button class="nav-tab" data-tab="analysis" role="tab">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-    Figures of Merit
+    7 Figures of Merit
   </button>
   <button class="nav-tab" data-tab="environment" role="tab">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.93 4.93l4.24 4.24"></path><path d="M14.83 9.17l4.24-4.24"></path><path d="M14.83 14.83l4.24 4.24"></path><path d="M9.17 14.83l-4.24 4.24"></path><circle cx="12" cy="12" r="3"></circle></svg>
-    Emitter Registry
+    Emitter Registry (Spatial & Agile)
   </button>
   <button class="nav-tab" data-tab="about" role="tab">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
@@ -103,6 +991,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
         Reset System
       </button>
+      <button id="btn-mode-toggle" class="btn btn-ghost" title="Toggle Train vs. Evaluate Mode">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
+        <span id="btn-mode-label">Mode: Train (Explore)</span>
+      </button>
     </div>
 
     <div class="control-group">
@@ -114,12 +1006,28 @@
       </div>
 
       <div class="control-divider"></div>
-      <span class="input-label">RF Spectrum:</span>
+      <span class="input-label">Channels:</span>
       <select id="bands-select" class="select-control">
-        <option value="8">8 Channels (1.0 GHz Span)</option>
-        <option value="16" selected>16 Channels (2.0 GHz Span)</option>
-        <option value="32">32 Channels (4.0 GHz Span)</option>
+        <option value="8">8 Channels</option>
+        <option value="16" selected>16 Channels</option>
+        <option value="32">32 Channels</option>
       </select>
+
+      <div class="control-divider"></div>
+      <span class="input-label">PRNG Seed:</span>
+      <select id="seed-select" class="select-control">
+        <option value="42" selected>Seed 42 (Eval Standard)</option>
+        <option value="1337">Seed 1337 (Benchmark B)</option>
+        <option value="2026">Seed 2026 (Benchmark C)</option>
+        <option value="777">Seed 777</option>
+        <option value="random">Randomize Seed</option>
+      </select>
+
+      <div class="control-divider"></div>
+      <button id="btn-export-csv" class="btn btn-ghost" style="padding:0.42rem 0.75rem" title="Export 7 Figures of Merit to CSV">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        CSV Export
+      </button>
     </div>
   </div>
 
@@ -134,31 +1042,31 @@
       <div class="kpi-footer">Probability of detection (closed-loop)</div>
     </div>
 
+    <div class="kpi-card" id="kpi-periodic-pd">
+      <div class="kpi-header">
+        <span class="kpi-label">Pd · Periodic Tracker</span>
+        <span class="kpi-badge" style="color:var(--accent-cyan)">OPTIMAL PRI</span>
+      </div>
+      <div class="kpi-value" style="color:var(--accent-cyan)">0.0%</div>
+      <div class="kpi-footer">Coincidence phase matching</div>
+    </div>
+
     <div class="kpi-card" id="kpi-seq-pd">
       <div class="kpi-header">
         <span class="kpi-label">Pd · Sequential</span>
         <span class="kpi-badge" style="color:var(--accent-red)">BASELINE</span>
       </div>
       <div class="kpi-value" style="color:var(--accent-red)">0.0%</div>
-      <div class="kpi-footer">Open-loop raster baseline</div>
+      <div class="kpi-footer">Open-loop raster sweep</div>
     </div>
 
-    <div class="kpi-card" id="kpi-reward">
+    <div class="kpi-card" id="kpi-cpc">
       <div class="kpi-header">
-        <span class="kpi-label">Cumulative Reward</span>
-        <span class="kpi-badge" style="color:var(--accent-purple)">OPTIMIZATION</span>
-      </div>
-      <div class="kpi-value" style="color:var(--accent-purple)">0.0</div>
-      <div class="kpi-footer">RL policy objective score</div>
-    </div>
-
-    <div class="kpi-card" id="kpi-intercept-rate">
-      <div class="kpi-header">
-        <span class="kpi-label">Intercept Rate</span>
-        <span class="kpi-badge" style="color:var(--accent-green)">SURVEILLANCE</span>
+        <span class="kpi-label">Correct Decisions (CPC)</span>
+        <span class="kpi-badge" style="color:var(--accent-green)">FIGURE OF MERIT</span>
       </div>
       <div class="kpi-value" style="color:var(--accent-green)">0.0%</div>
-      <div class="kpi-footer">Hits per total time steps</div>
+      <div class="kpi-footer">Overall decision accuracy</div>
     </div>
 
     <div class="kpi-card" id="kpi-intercept-time">
@@ -170,13 +1078,13 @@
       <div class="kpi-footer">Mean response lag from burst start</div>
     </div>
 
-    <div class="kpi-card" id="kpi-steps">
+    <div class="kpi-card" id="kpi-reward">
       <div class="kpi-header">
-        <span class="kpi-label">Surveillance Dwells</span>
-        <span class="kpi-badge">DISCRETE</span>
+        <span class="kpi-label">Cumulative Reward</span>
+        <span class="kpi-badge" style="color:var(--accent-purple)">OPTIMIZATION</span>
       </div>
-      <div class="kpi-value" style="color:var(--text-main)">0</div>
-      <div class="kpi-footer">Total receiver dwell iterations</div>
+      <div class="kpi-value" style="color:var(--accent-purple)">0.0</div>
+      <div class="kpi-footer">RL policy objective score</div>
     </div>
   </div>
 
@@ -188,7 +1096,7 @@
         SPECTRUM WATERFALL (Time × Channel Activity & Receiver Tuning)
       </div>
       <div style="font-size:0.75rem;color:var(--text-dim);font-family:var(--font-mono)">
-        Horizontal: Time History (80 slots) · Vertical: Frequency Sub-Bands (B00–B15)
+        Horizontal: Time History (80 slots) · Vertical: Frequency Sub-Bands (CH00–CH15)
       </div>
     </div>
 
@@ -202,12 +1110,16 @@
         <span>Active Radar / Emitter Signal</span>
       </div>
       <div class="legend-item">
-        <div class="legend-swatch" style="background:#090d16;border:1px solid #1e293b"></div>
+        <div class="legend-swatch" style="background:#060a12;border:1px solid #1e293b"></div>
         <span>Quiet RF Floor</span>
       </div>
       <div class="legend-item">
         <div class="legend-swatch" style="border:2px solid #3b82f6;background:none"></div>
         <span>Q-Learning Tuned Channel</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="border:2px solid #06b6d4;background:none"></div>
+        <span>Periodic Tracker Tuned Channel</span>
       </div>
       <div class="legend-item">
         <div class="legend-swatch" style="border:2px solid #ef4444;background:none"></div>
@@ -237,15 +1149,15 @@
     <div>
       <div class="section-title">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-        Comparative Schedulers Evaluation
+        Comparative Schedulers Evaluation (7 Figures of Merit)
       </div>
-      <div class="section-sub">Head-to-head performance across adaptive closed-loop agents vs. classical fixed policies.</div>
+      <div class="section-sub">Head-to-head performance across adaptive closed-loop agents vs. optimal periodic estimator vs. classical heuristics.</div>
     </div>
   </div>
 
   <div id="strategy-cards" class="strategy-cards-row"></div>
 
-  <div class="compare-grid" style="display:grid;grid-template-columns:1fr 1.2fr;gap:1.25rem">
+  <div class="compare-grid" style="display:grid;grid-template-columns:1fr 1.3fr;gap:1.25rem">
     <div class="chart-panel" style="height:380px"><canvas id="chart-compare"></canvas></div>
     <div class="table-panel">
       <div style="font-family:var(--font-ui);font-size:0.85rem;font-weight:700;margin-bottom:0.75rem;color:var(--text-main)">
@@ -253,8 +1165,14 @@
       </div>
       <table>
         <thead><tr>
-          <th>Scheduler</th><th>Pd (%)</th><th>Pfa (%)</th><th>Intercept Rate</th>
-          <th>Latency (steps)</th><th>Hits</th><th>Misses</th><th>Score</th>
+          <th>Scheduler</th>
+          <th>Pd (%)</th>
+          <th>Pfa (%)</th>
+          <th>AIR (%)</th>
+          <th>Latency</th>
+          <th>Sensitivity</th>
+          <th>CPC (%)</th>
+          <th>Reward</th>
         </tr></thead>
         <tbody id="analysis-tbody-compare"></tbody>
       </table>
@@ -263,16 +1181,20 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════════════
-     TAB 3: Q-LEARNING ML TELEMETRY
+     TAB 3: Q-LEARNING & OPTIMAL PERIODIC TRACKER
 ════════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-ml" class="tab-panel">
   <div class="section-header">
     <div>
       <div class="section-title">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-        Q-Learning State-Action Value Matrix & Policy Diagnostics
+        Q-Learning State-Action Value Matrix & Periodic Estimator Diagnostics
       </div>
-      <div class="section-sub">Real-time inspection of state transitions Q[s, a] and exploration rate decay.</div>
+      <div class="section-sub">Inspect learned transition policy Q[s, a], estimated radar pulse repetition intervals (PRI), and model persistence controls.</div>
+    </div>
+    <div style="display:flex;gap:0.5rem">
+      <button id="btn-export-weights" class="btn btn-ghost" style="font-size:0.75rem">Save Model JSON</button>
+      <button id="btn-import-weights" class="btn btn-ghost" style="font-size:0.75rem">Load Model JSON</button>
     </div>
   </div>
 
@@ -293,13 +1215,20 @@
 
     <div class="ml-meta">
       <div class="meta-card">
+        <h4>Optimal Periodic Radar Estimator</h4>
+        <div id="periodic-estimates" style="font-size:0.72rem;font-family:var(--font-mono);max-height:160px;overflow-y:auto">
+          <div style="color:var(--text-dim);padding:0.4rem 0">Start engine to observe PRI fitting...</div>
+        </div>
+      </div>
+
+      <div class="meta-card">
         <h4>Hyperparameter Settings</h4>
         <table style="font-size:0.78rem;font-family:var(--font-mono)">
           <tr><td style="color:var(--text-muted);padding:0.35rem 0">Learning Rate (α)</td><td style="color:var(--accent-blue);font-weight:600">0.15</td></tr>
           <tr><td style="color:var(--text-muted);padding:0.35rem 0">Discount Factor (γ)</td><td style="color:var(--accent-blue);font-weight:600">0.85</td></tr>
           <tr><td style="color:var(--text-muted);padding:0.35rem 0">Reward · Hit</td><td style="color:var(--accent-green);font-weight:600">+1.00</td></tr>
           <tr><td style="color:var(--text-muted);padding:0.35rem 0">Reward · Missed Active</td><td style="color:var(--accent-red);font-weight:600">-0.10</td></tr>
-          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Reward · Silent Scan</td><td style="color:var(--text-dim);font-weight:600">0.00</td></tr>
+          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Reward · Noise Alarm</td><td style="color:var(--accent-amber);font-weight:600">-0.05</td></tr>
         </table>
       </div>
 
@@ -308,14 +1237,7 @@
         <div class="epsilon-display" id="epsilon-display">100.0%</div>
         <div style="font-size:0.72rem;color:var(--text-dim);margin-top:0.25rem;font-family:var(--font-mono)">Current Random Exploration Rate</div>
         <div style="margin-top:0.6rem;font-size:0.75rem;color:var(--text-muted);line-height:1.5">
-          Decays geometrically (0.995/step) toward 5.0% floor, transitioning the scheduler from global spectrum exploration to optimal policy exploitation.
-        </div>
-      </div>
-
-      <div class="meta-card">
-        <h4>UCB Bandit Visit Frequency</h4>
-        <div id="ucb-counts" style="font-size:0.7rem;font-family:var(--font-mono)">
-          <div style="color:var(--text-dim);padding:0.5rem 0">Start engine to view bandit counts...</div>
+          Decays geometrically (0.995/step) toward 5.0% floor in Train mode, or frozen to 0% in Evaluation mode.
         </div>
       </div>
     </div>
@@ -323,14 +1245,14 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════════════
-     TAB 4: FIGURES OF MERIT (ANALYSIS)
+     TAB 4: 7 FIGURES OF MERIT
 ════════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-analysis" class="tab-panel">
   <div class="section-header">
     <div>
       <div class="section-title">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-        Figures of Merit & Receiver Telemetry Breakdown
+        Complete 7 Figures of Merit & Receiver Telemetry Breakdown
       </div>
       <div class="section-sub">Standard defense electronic warfare evaluation criteria for wideband intercept receivers.</div>
     </div>
@@ -342,11 +1264,14 @@
         <th>Scheduler</th>
         <th>Pd (%)</th>
         <th>Pfa (%)</th>
-        <th>Intercept Rate (%)</th>
-        <th>Mean Time Error (steps)</th>
-        <th>Intercept Hits</th>
-        <th>Missed Signals</th>
-        <th>Cum. Objective Reward</th>
+        <th>AIR (%)</th>
+        <th>AITE (Latency)</th>
+        <th>Sensitivity (%)</th>
+        <th>CPC (%)</th>
+        <th>Hits</th>
+        <th>Misses</th>
+        <th>False Alarms</th>
+        <th>Cum. Reward</th>
       </tr></thead>
       <tbody id="analysis-tbody"></tbody>
     </table>
@@ -354,27 +1279,39 @@
 
   <div class="theory-grid" style="margin-top:1.25rem">
     <div class="briefing-card">
-      <h3>Probability of Detection (Pd)</h3>
-      <p>The statistical ratio of active emitter pulses successfully intercepted by the receiver dwell window divided by total pulse emissions across all channels.</p>
-      <div class="math-formula">Pd = Intercepted Pulses / Total Emitter Transmissions</div>
+      <h3>1. Probability of Detection (Pd)</h3>
+      <p>Ratio of active emitter pulses successfully intercepted by the receiver dwell window divided by total pulse emissions across all channels.</p>
+      <div class="math-formula">Pd = Intercepted Pulses / Total Active Transmissions</div>
     </div>
 
     <div class="briefing-card">
-      <h3>Mean Intercept Latency (AITE)</h3>
-      <p>The average temporal delay between the start of an emitter burst and the instant the receiver scheduler tunes to the active frequency channel.</p>
-      <div class="math-formula">AITE = (1/N) · ∑ (t_intercept − t_emission_start)</div>
+      <h3>2. Probability of False Alarm (Pfa)</h3>
+      <p>Rate of false alarm triggers occurring when receiver dwells on quiet channels due to receiver noise floor spikes.</p>
+      <div class="math-formula">Pfa = False Detections / Total Quiet Dwells</div>
     </div>
 
     <div class="briefing-card">
-      <h3>Average Intercept Rate (AIR)</h3>
-      <p>Normalized throughput metric reflecting total intercepted signals relative to continuous mission dwell clock intervals.</p>
+      <h3>3. Average Intercept Rate (AIR)</h3>
+      <p>Normalized interception throughput metric reflecting total intercepted signals relative to continuous mission dwell clock intervals.</p>
       <div class="math-formula">AIR = Intercepted Dwells / Total Mission Steps</div>
     </div>
 
     <div class="briefing-card">
-      <h3>Optimization Reward Objective</h3>
-      <p>Linear scalar reward function guiding reinforcement learning gradient updates to prioritize timely intercepts and penalize missed activity.</p>
-      <div class="math-formula">R(t) = +1.0 · hit − 0.1 · miss + 0.0 · quiet</div>
+      <h3>4. Average Intercept Time Error (AITE)</h3>
+      <p>Average temporal delay between the start of an emitter burst and the instant the receiver scheduler tunes to the active frequency channel.</p>
+      <div class="math-formula">AITE = (1/N) · ∑ (t_intercept − t_emission_start)</div>
+    </div>
+
+    <div class="briefing-card">
+      <h3>5. Receiver Sensitivity (Recall)</h3>
+      <p>Statistical ability of the receiver policy to detect true signal presence relative to false negative misses.</p>
+      <div class="math-formula">Sensitivity = True Positives / (True Positives + False Negatives)</div>
+    </div>
+
+    <div class="briefing-card">
+      <h3>6. Percentage of Correct Decisions (CPC)</h3>
+      <p>Proportion of all receiver decisions that were correct (intercepting active signals or avoiding quiet channels without false alarm).</p>
+      <div class="math-formula">CPC = (Hits + True Negatives) / (Total Actions + Misses) × 100%</div>
     </div>
   </div>
 </div>
@@ -387,9 +1324,9 @@
     <div>
       <div class="section-title">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.93 4.93l4.24 4.24"></path><path d="M14.83 9.17l4.24-4.24"></path><path d="M14.83 14.83l4.24 4.24"></path><path d="M9.17 14.83l-4.24 4.24"></path><circle cx="12" cy="12" r="3"></circle></svg>
-        Tactical Threat Environment & Emitter Registry
+        Tactical Threat Environment & Emitter Registry (Spatial & Agile)
       </div>
-      <div class="section-sub">Active radar profiles, transmission characteristics, and modulation dynamics.</div>
+      <div class="section-sub">Active radar profiles, antenna beam scan geometries, and transmission characteristics.</div>
     </div>
   </div>
 
@@ -400,7 +1337,7 @@
       </div>
       <table>
         <thead><tr>
-          <th>ID</th><th>Emitter Class</th><th>Base Band</th><th>Period / Hop Interval</th><th>Duty Cycle / Tx Prob</th><th>Status</th>
+          <th>ID</th><th>Emitter Class</th><th>Base Channel</th><th>Period / Hop / Rotation</th><th>Duty / Tx Prob</th><th>Status</th>
         </tr></thead>
         <tbody id="emitter-tbody"></tbody>
       </table>
@@ -410,7 +1347,8 @@
       <div class="briefing-card">
         <h3>Radar & Threat Taxonomy</h3>
         <ul>
-          <li><strong style="color:var(--accent-blue)">Periodic Emitter</strong> — Fixed center frequency with deterministic pulse repetition intervals (PRI) and duty cycles.</li>
+          <li><strong style="color:var(--accent-blue)">Periodic Pulse Radar</strong> — Fixed center frequency with deterministic pulse repetition intervals (PRI) and duty cycles.</li>
+          <li><strong style="color:var(--accent-cyan)">Spatial Scanning Radar</strong> — Rotates directional antenna beam 360°, illuminating receiver only during azimuth alignment.</li>
           <li><strong style="color:var(--accent-amber)">Frequency-Agile Hopper</strong> — Pseudo-randomly switches carrier channels across dwells to evade electronic interception.</li>
           <li><strong style="color:var(--accent-purple)">Intermittent Threat</strong> — Low probability of intercept (LPI) radar with probabilistic random burst timing.</li>
           <li><strong style="color:var(--accent-red)">Burst Transmitter</strong> — High-density pulse train transmissions interspersed with long quiet periods.</li>
@@ -420,10 +1358,10 @@
       <div class="briefing-card">
         <h3>Receiver Architecture Specifications</h3>
         <table style="font-size:0.78rem;font-family:var(--font-mono)">
-          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Surveillance Bandwidth</td><td style="color:var(--text-main)">Wideband Instantaneous (Configurable 8–32 Bands)</td></tr>
-          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Receiver Channel Capacity</td><td style="color:var(--text-main)">1 Tuned Band / Discrete Time Dwell</td></tr>
-          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Waterfall Frame Depth</td><td style="color:var(--text-main)">80 Time Epochs</td></tr>
-          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Observation Noise</td><td style="color:var(--accent-green)">Ideal Receiver (Zero Channel Error)</td></tr>
+          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Surveillance Bandwidth</td><td style="color:var(--text-main)">Wideband Instantaneous (Configurable 8, 16, 32 Channels)</td></tr>
+          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Receiver Dwell Capacity</td><td style="color:var(--text-main)">1 Tuned Band / Discrete Time Dwell</td></tr>
+          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Thermal Noise Model</td><td style="color:var(--accent-green)">Configurable Receiver Noise Floor (Pfa ~ 2%)</td></tr>
+          <tr><td style="color:var(--text-muted);padding:0.35rem 0">Evaluation Reproducibility</td><td style="color:var(--accent-blue)">Deterministic Mulberry32 PRNG with Seed Control</td></tr>
         </table>
       </div>
     </div>
@@ -440,7 +1378,7 @@
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>
         Electronic Warfare Receiver Scheduling & Machine Learning Foundations
       </div>
-      <div class="section-sub">Mathematical formulation of two-dimensional spectral search and reinforcement learning scheduling.</div>
+      <div class="section-sub">Mathematical formulation of two-dimensional spectral search, optimal periodic coincidence estimation, and reinforcement learning.</div>
     </div>
   </div>
 
@@ -448,14 +1386,14 @@
     <div class="briefing-card">
       <h3>The Operational Challenge</h3>
       <p>In electronic warfare (EW) surveillance, an Electronic Support (ES) receiver must maintain situational awareness over a wide radio frequency (RF) spectrum. Because receiver hardware typically has an instantaneous bandwidth significantly smaller than the total surveillance bandwidth, the receiver must dynamically schedule dwell times across discrete sub-bands.</p>
-      <p>Traditional open-loop strategies rely on rigid periodic sweeping, which fails to adapt against modern frequency-agile radars, pulse-compression radars, and intermittent LPI emitters.</p>
+      <p>Traditional open-loop strategies rely on rigid periodic sweeping, which fails against modern frequency-agile radars, pulse-compression radars, and intermittent LPI emitters.</p>
     </div>
 
     <div class="briefing-card">
-      <h3>Two-Dimensional Search Problem</h3>
-      <p>Signal interception is fundamentally a spatio-temporal and frequency coincidence problem: the receiver must be tuned to frequency band $f_i$ during time slot $t_j$ when the target emitter is actively radiating energy.</p>
-      <div class="math-formula">P(Intercept) = P(f_receiver(t) = f_emitter(t) | Emitter_active(t))</div>
-      <p>Adaptive closed-loop algorithms formulate this as a sequential Markov decision process (MDP) where the agent predicts upcoming emitter transmissions based on historical temporal correlations.</p>
+      <h3>Optimal Periodic Scan Interception</h3>
+      <p>For periodic emitters with pulse repetition interval $T_p$ and phase offset $\phi_p$, the optimal scan strategy is <strong>pulse coincidence scheduling</strong>:</p>
+      <div class="math-formula">\hat{t}_{k} = \hat{\phi}_p + k \cdot \hat{T}_p \quad \Longrightarrow \quad \text{Tune Receiver to } b \text{ when } t \equiv \hat{\phi}_p \pmod{\hat{T}_p}</div>
+      <p>The periodic coincidence agent estimates $\hat{T}_p$ and $\hat{\phi}_p$ via inter-pulse arrival histograms, achieving minimum intercept latency error while freeing intermediate slots for agile spectrum search.</p>
     </div>
 
     <div class="briefing-card">
@@ -469,39 +1407,78 @@
     </div>
 
     <div class="briefing-card">
-      <h3>Open-Loop vs. Closed-Loop Performance</h3>
-      <p><strong>Open-Loop (Sequential, Priority):</strong> Fixed pre-mission schedules. High coverage against steady uncoordinated continuous emitters, but poor efficiency against agile hopping and low-duty radar pulses.</p>
-      <p><strong>Closed-Loop (Q-Learning, UCB Bandit):</strong> Online learning from live signal hits/misses. Successfully identifies radar pulse repetition intervals and synchronizes receiver dwell switching to match emitter duty cycles.</p>
+      <h3>Spatially Scanning Radar Dynamics</h3>
+      <p>Spatially scanning search radars sweep a narrow directional beam across $360^\circ$ with rotational period $T_{\text{rot}}$. The receiver intercepts the mainlobe only when the beam azimuth $\theta(t) = (\omega t + \theta_0) \pmod{360^\circ}$ aligns with the receiver angle.</p>
+      <div class="math-formula">|\theta(t) - \theta_{\text{rx}}| \le \frac{\theta_{\text{beam}}}{2}</div>
     </div>
   </div>
 </div>
 
 <script>
 
-// --- Simulator ---
+// ==========================================
+// 1. RF ENVIRONMENT & EMITTERS
+// ==========================================
 /**
  * RF Environment Simulator
+ * Supports deterministic seeded PRNG (Mulberry32), spatial scan rotating beam radars,
+ * frequency agile hoppers, periodic pulse radars, intermittent emitters, and receiver noise floor.
  */
+
+// ─── Seeded PRNG (Mulberry32) ─────────────────────────────────────────────────
+class SeededRNG {
+  constructor(seed = 42) {
+    this.setSeed(seed);
+  }
+
+  setSeed(seed) {
+    this.seed = typeof seed === 'number' ? seed : 42;
+    this.state = this.seed >>> 0;
+  }
+
+  /** Return pseudo-random float in [0, 1) */
+  random() {
+    let t = (this.state += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
+  /** Return pseudo-random integer in [min, max] */
+  randInt(min, max) {
+    return Math.floor(this.random() * (max - min + 1)) + min;
+  }
+}
+
+const globalRNG = new SeededRNG(42);
 
 const EMITTER_TYPES = {
   PERIODIC: 'periodic',
   AGILE: 'agile',
   INTERMITTENT: 'intermittent',
   BURST: 'burst',
+  SPATIAL_SCAN: 'spatial_scan', // Rotating radar beam illumination
 };
 
 class Emitter {
-  constructor(id, type, config = {}) {
+  constructor(id, type, config = {}, rng = globalRNG) {
     this.id = id;
     this.type = type;
     this.config = config;
+    this.rng = rng;
     this.state = false;
-    this.phase = Math.floor(Math.random() * 20);
+    this.phase = this.rng.randInt(0, 19);
     this.currentBand = config.homeBand ?? 0;
     this.burstCounter = 0;
     this.burstLength = config.burstLength ?? 3;
     this.burstGap = config.burstGap ?? 7;
     this.inBurst = false;
+
+    // Spatial scan radar antenna properties
+    this.rotationPeriod = config.rotationPeriod ?? 16; // Time steps for 360-deg rotation
+    this.beamwidthDeg = config.beamwidthDeg ?? 35;     // 3dB Mainlobe beamwidth
+    this.rxAzimuthDeg = config.rxAzimuthDeg ?? 90;     // Angle of ES receiver relative to radar
+    this.currentAzimuth = config.initialAzimuth ?? this.rng.randInt(0, 359);
   }
 
   step(t, numBands) {
@@ -513,92 +1490,144 @@ class Emitter {
         this.state = slot < Math.round(period * duty);
         return { band: this.config.homeBand ?? 0, active: this.state };
       }
+
       case EMITTER_TYPES.AGILE: {
         const hopInterval = this.config.hopInterval ?? 5;
         if (t % hopInterval === 0) {
-          this.currentBand = (this.currentBand + Math.floor(Math.random() * (numBands - 1)) + 1) % numBands;
+          const hopOffset = this.rng.randInt(1, Math.max(1, numBands - 1));
+          this.currentBand = (this.currentBand + hopOffset) % numBands;
         }
-        this.state = Math.random() < (this.config.txProb ?? 0.8);
+        this.state = this.rng.random() < (this.config.txProb ?? 0.8);
         return { band: this.currentBand, active: this.state };
       }
+
       case EMITTER_TYPES.INTERMITTENT: {
-        this.state = Math.random() < (this.config.txProb ?? 0.3);
+        this.state = this.rng.random() < (this.config.txProb ?? 0.35);
         return { band: this.config.homeBand ?? 0, active: this.state };
       }
+
       case EMITTER_TYPES.BURST: {
         this.burstCounter++;
         if (this.inBurst) {
-          if (this.burstCounter >= this.burstLength) { this.inBurst = false; this.burstCounter = 0; }
+          if (this.burstCounter >= this.burstLength) {
+            this.inBurst = false;
+            this.burstCounter = 0;
+          }
           this.state = true;
         } else {
-          if (this.burstCounter >= this.burstGap) { this.inBurst = true; this.burstCounter = 0; }
+          if (this.burstCounter >= this.burstGap) {
+            this.inBurst = true;
+            this.burstCounter = 0;
+          }
           this.state = false;
         }
         return { band: this.config.homeBand ?? 0, active: this.state };
       }
-      default: return { band: 0, active: false };
+
+      case EMITTER_TYPES.SPATIAL_SCAN: {
+        // Rotating radar beam: mainlobe illuminates receiver only during alignment
+        const degPerStep = 360 / this.rotationPeriod;
+        this.currentAzimuth = (this.currentAzimuth + degPerStep) % 360;
+        let angleDiff = Math.abs(this.currentAzimuth - this.rxAzimuthDeg);
+        if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+        // Mainlobe illumination condition
+        const inMainlobe = angleDiff <= (this.beamwidthDeg / 2);
+        // Intermittent pulse trains within mainlobe illumination
+        this.state = inMainlobe && (this.rng.random() < (this.config.txProb ?? 0.9));
+        return { band: this.config.homeBand ?? 0, active: this.state };
+      }
+
+      default:
+        return { band: 0, active: false };
     }
+  }
+
+  reset() {
+    this.state = false;
+    this.phase = this.rng.randInt(0, 19);
+    this.currentBand = this.config.homeBand ?? 0;
+    this.burstCounter = 0;
+    this.inBurst = false;
+    this.currentAzimuth = this.config.initialAzimuth ?? this.rng.randInt(0, 359);
   }
 }
 
 class RFEnvironment {
   constructor(config = {}) {
     this.numBands = config.numBands ?? 16;
+    this.seed = config.seed ?? 42;
+    this.rng = new SeededRNG(this.seed);
+    this.noiseProb = config.noiseProb ?? 0.02; // Receiver thermal false alarm probability
     this.emitters = [];
     this.t = 0;
     this.bandActivity = new Array(this.numBands).fill(false);
+    this.rawNoise = new Array(this.numBands).fill(false);
     this.history = [];
     this.maxHistory = config.maxHistory ?? 500;
     this._buildEmitters(config.emitters);
   }
 
+  setSeed(seed) {
+    this.seed = seed;
+    this.rng.setSeed(seed);
+    this.reset();
+  }
+
   _buildEmitters(emitterConfigs) {
     if (emitterConfigs) {
-      emitterConfigs.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg)));
+      emitterConfigs.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg, this.rng)));
       return;
     }
     const defaults = [
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 0,  period: 8,  duty: 0.5  },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 3,  period: 12, duty: 0.3  },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 7,  period: 6,  duty: 0.6  },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 0, period: 8, duty: 0.5 },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 3, period: 12, duty: 0.3 },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 7, period: 6, duty: 0.6 },
       { type: EMITTER_TYPES.PERIODIC, homeBand: 11, period: 20, duty: 0.25 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 14, period: 9,  duty: 0.45 },
-      { type: EMITTER_TYPES.AGILE,    hopInterval: 4, txProb: 0.75 },
-      { type: EMITTER_TYPES.AGILE,    hopInterval: 7, txProb: 0.65 },
-      { type: EMITTER_TYPES.AGILE,    hopInterval: 3, txProb: 0.80 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 5,  txProb: 0.35 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 9,  txProb: 0.45 },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 14, period: 9, duty: 0.45 },
+      { type: EMITTER_TYPES.AGILE, hopInterval: 4, txProb: 0.75 },
+      { type: EMITTER_TYPES.AGILE, hopInterval: 7, txProb: 0.65 },
+      { type: EMITTER_TYPES.AGILE, hopInterval: 3, txProb: 0.80 },
+      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 5, txProb: 0.35 },
+      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 9, txProb: 0.45 },
       { type: EMITTER_TYPES.INTERMITTENT, homeBand: 13, txProb: 0.25 },
-      { type: EMITTER_TYPES.BURST, homeBand: 2,  burstLength: 3, burstGap: 10 },
-      { type: EMITTER_TYPES.BURST, homeBand: 10, burstLength: 5, burstGap: 8  },
+      { type: EMITTER_TYPES.BURST, homeBand: 2, burstLength: 3, burstGap: 10 },
+      { type: EMITTER_TYPES.BURST, homeBand: 10, burstLength: 5, burstGap: 8 },
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 6, rotationPeriod: 14, beamwidthDeg: 40, rxAzimuthDeg: 90 },
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 12, rotationPeriod: 22, beamwidthDeg: 30, rxAzimuthDeg: 180 },
     ];
-    defaults.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg)));
+    defaults.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg, this.rng)));
   }
 
   step() {
     const activity = new Array(this.numBands).fill(false);
     this.emitters.forEach(e => {
       const { band, active } = e.step(this.t, this.numBands);
-      if (active) activity[band] = true;
+      if (active && band < this.numBands) activity[band] = true;
     });
+
+    // Simulate occasional thermal noise spikes exceeding receiver detection threshold
+    const noise = new Array(this.numBands).fill(false);
+    for (let b = 0; b < this.numBands; b++) {
+      if (!activity[b] && this.rng.random() < this.noiseProb) {
+        noise[b] = true;
+      }
+    }
+    this.rawNoise = noise;
+
     this.bandActivity = activity;
     if (this.history.length >= this.maxHistory) this.history.shift();
     this.history.push([...activity]);
     this.t++;
-    return activity;
+    return { activity, noise };
   }
 
   reset() {
     this.t = 0;
     this.bandActivity = new Array(this.numBands).fill(false);
+    this.rawNoise = new Array(this.numBands).fill(false);
     this.history = [];
-    this.emitters.forEach(e => {
-      e.state = false;
-      e.phase = Math.floor(Math.random() * 20);
-      e.currentBand = e.config.homeBand ?? 0;
-      e.burstCounter = 0;
-      e.inBurst = false;
-    });
+    this.emitters.forEach(e => e.reset());
   }
 
   getBandDensity() {
@@ -610,53 +1639,212 @@ class RFEnvironment {
 
   getEmitterSummary() {
     return this.emitters.map(e => ({
-      id: e.id, type: e.type, band: e.currentBand, active: e.state, config: e.config,
+      id: e.id,
+      type: e.type,
+      band: e.currentBand,
+      active: e.state,
+      config: e.config,
     }));
   }
 }
 
 
-// --- QLearning ---
+
+// ==========================================
+// 2. Q-LEARNING & PERIODIC AGENTS
+// ==========================================
 /**
- * Q-Learning Agent for EW Scan Scheduling
+ * Closed-Loop Schedulers & Machine Learning Agents:
+ * 1. Optimal Periodic Coincidence Estimator (Period & Phase Tracker)
+ * 2. Q-Learning Reinforcement Learning Agent (TD-Learning with Epsilon Decay & Train/Eval Modes)
+ * 3. UCB-1 Multi-Armed Bandit Agent
  */
 
-class QLearningAgent {
+
+
+// ─── 1. Optimal Periodic Scan Estimator (Radar PRI & Phase Tracker) ────────────
+class OptimalPeriodicEstimator {
   constructor(numBands, config = {}) {
     this.numBands = numBands;
-    this.alpha = config.alpha ?? 0.15;    // learning rate
-    this.gamma = config.gamma ?? 0.85;   // discount factor
-    this.epsilon = config.epsilon ?? 1.0; // exploration rate
+    this.minSamplesForFit = config.minSamplesForFit ?? 3;
+    this.maxTrackedPeriod = config.maxTrackedPeriod ?? 40;
+    this.reset();
+  }
+
+  reset() {
+    // Per-band arrival timestamps history
+    this.pulseHistory = Array.from({ length: this.numBands }, () => []);
+    // Estimated period T_hat and phase phi_hat
+    this.estimatedPeriod = new Array(this.numBands).fill(null);
+    this.estimatedPhase = new Array(this.numBands).fill(null);
+    this.confidence = new Array(this.numBands).fill(0);
+    this.currentStep = 0;
+  }
+
+  /**
+   * Observe whether the currently tuned band was active at time t
+   * @param {number} band - Channel index
+   * @param {boolean} wasHit - True if signal detected
+   * @param {number} t - Current time step
+   */
+  observe(band, wasHit, t) {
+    this.currentStep = t;
+    if (wasHit) {
+      const history = this.pulseHistory[band];
+      // Avoid duplicate timestamps
+      if (history.length === 0 || history[history.length - 1] !== t) {
+        history.push(t);
+        if (history.length > 30) history.shift();
+      }
+
+      // If we have at least 3 pulses, compute period & phase estimate
+      if (history.length >= this.minSamplesForFit) {
+        this._estimatePeriodPhase(band);
+      }
+    }
+  }
+
+  _estimatePeriodPhase(band) {
+    const history = this.pulseHistory[band];
+    if (history.length < 2) return;
+
+    // Calculate inter-pulse arrival intervals (delta t)
+    const deltas = [];
+    for (let i = 1; i < history.length; i++) {
+      const dt = history[i] - history[i - 1];
+      if (dt > 0 && dt <= this.maxTrackedPeriod) {
+        deltas.push(dt);
+      }
+    }
+
+    if (deltas.length === 0) return;
+
+    // Mode / Median histogram for dominant fundamental period
+    const counts = {};
+    deltas.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
+    let bestDelta = deltas[0], maxCount = 0;
+    Object.keys(counts).forEach(d => {
+      const numD = parseInt(d);
+      if (counts[d] > maxCount) {
+        maxCount = counts[d];
+        bestDelta = numD;
+      }
+    });
+
+    this.estimatedPeriod[band] = bestDelta;
+    // Phase phi: remainder modulo estimated period
+    const lastTime = history[history.length - 1];
+    this.estimatedPhase[band] = lastTime % bestDelta;
+    this.confidence[band] = Math.min(1.0, history.length / 6);
+  }
+
+  /**
+   * Predict which band has an incoming periodic pulse at time t
+   * If multiple bands are expected, prioritize the one with highest confidence or earliest deadline
+   */
+  selectBand(t, fallbackBand = 0) {
+    let bestBand = null;
+    let maxConf = -1;
+
+    for (let b = 0; b < this.numBands; b++) {
+      const T = this.estimatedPeriod[b];
+      const phi = this.estimatedPhase[b];
+      if (T !== null && phi !== null) {
+        // Check if pulse is expected at time t
+        if (t % T === phi) {
+          if (this.confidence[b] > maxConf) {
+            maxConf = this.confidence[b];
+            bestBand = b;
+          }
+        }
+      }
+    }
+
+    if (bestBand !== null) return bestBand;
+
+    // If no periodic pulse expected at exact step t, explore channels with fewest observations
+    let minObs = Infinity, leastExploredBand = fallbackBand;
+    for (let b = 0; b < this.numBands; b++) {
+      const obsCount = this.pulseHistory[b].length;
+      if (obsCount < minObs) {
+        minObs = obsCount;
+        leastExploredBand = b;
+      }
+    }
+    return leastExploredBand;
+  }
+}
+
+// ─── 2. Q-Learning Agent ──────────────────────────────────────────────────────
+class QLearningAgent {
+  constructor(numBands, config = {}, rng = globalRNG) {
+    this.numBands = numBands;
+    this.rng = rng;
+    this.alpha = config.alpha ?? 0.15;      // Learning rate
+    this.gamma = config.gamma ?? 0.85;     // Discount factor
+    this.epsilon = config.epsilon ?? 1.0;   // Exploration rate
     this.epsilonMin = config.epsilonMin ?? 0.05;
     this.epsilonDecay = config.epsilonDecay ?? 0.995;
-    // Q-table: state = current band, action = next band
+    this.evalMode = config.evalMode ?? false; // Freeze weights & exploration in eval mode
+
+    // Q-table: state = current band, action = next band to tune
     this.qTable = Array.from({ length: numBands }, () => new Array(numBands).fill(0));
-    this.lastBand = 0;
     this.totalReward = 0;
     this.rewardHistory = [];
-    this.episodeRewards = [];
     this.steps = 0;
   }
 
-  /** Choose next band using epsilon-greedy policy */
-  selectBand(currentBand) {
-    if (Math.random() < this.epsilon) {
-      return Math.floor(Math.random() * this.numBands); // explore
-    }
-    // exploit: pick band with highest Q-value from current state
-    const row = this.qTable[currentBand];
-    let maxQ = -Infinity, bestBand = 0;
-    row.forEach((q, b) => { if (q > maxQ) { maxQ = q; bestBand = b; } });
-    return bestBand;
+  setEvaluationMode(isEval) {
+    this.evalMode = !!isEval;
   }
 
-  /** Update Q-table based on reward received */
-  update(fromBand, toBand, reward, nextBand) {
-    const maxNextQ = Math.max(...this.qTable[nextBand]);
-    const currentQ = this.qTable[fromBand][toBand];
-    this.qTable[fromBand][toBand] = currentQ + this.alpha * (reward + this.gamma * maxNextQ - currentQ);
+  /**
+   * Choose next band using epsilon-greedy policy (or pure exploit if evalMode is true)
+   */
+  selectBand(currentBand) {
+    const effEpsilon = this.evalMode ? 0.0 : this.epsilon;
+
+    if (this.rng.random() < effEpsilon) {
+      return this.rng.randInt(0, this.numBands - 1); // Explore
+    }
+
+    // Exploit: argmax_a Q(currentBand, a) with random tie-breaking
+    const row = this.qTable[currentBand];
+    let maxQ = -Infinity;
+    let bestActions = [];
+
+    for (let a = 0; a < this.numBands; a++) {
+      if (row[a] > maxQ) {
+        maxQ = row[a];
+        bestActions = [a];
+      } else if (row[a] === maxQ) {
+        bestActions.push(a);
+      }
+    }
+    return bestActions[this.rng.randInt(0, bestActions.length - 1)];
+  }
+
+  /**
+   * Rigorous Q-Learning TD update (SARSAMAX):
+   * Q(s, a) ← Q(s, a) + α · [ R + γ · max_{a'} Q(s', a') − Q(s, a) ]
+   */
+  update(fromBand, actionBand, reward, nextStateBand) {
+    if (this.evalMode) {
+      this.totalReward += reward;
+      this.rewardHistory.push(this.totalReward);
+      this.steps++;
+      return;
+    }
+
+    // Target max Q-value over next state actions
+    const maxNextQ = Math.max(...this.qTable[nextStateBand]);
+    const currentQ = this.qTable[fromBand][actionBand];
+
+    // TD error update
+    this.qTable[fromBand][actionBand] = currentQ + this.alpha * (reward + this.gamma * maxNextQ - currentQ);
     this.totalReward += reward;
     this.rewardHistory.push(this.totalReward);
+
     if (this.epsilon > this.epsilonMin) {
       this.epsilon *= this.epsilonDecay;
     }
@@ -665,7 +1853,6 @@ class QLearningAgent {
 
   reset() {
     this.qTable = Array.from({ length: this.numBands }, () => new Array(this.numBands).fill(0));
-    this.lastBand = 0;
     this.totalReward = 0;
     this.rewardHistory = [];
     this.epsilon = 1.0;
@@ -676,18 +1863,44 @@ class QLearningAgent {
     return this.qTable.map(row => [...row]);
   }
 
-  getMaxQPerBand() {
-    return this.qTable.map(row => Math.max(...row));
+  /** Export model weights for persistence */
+  exportModelJSON() {
+    return JSON.stringify({
+      numBands: this.numBands,
+      alpha: this.alpha,
+      gamma: this.gamma,
+      epsilon: this.epsilon,
+      qTable: this.qTable,
+      steps: this.steps,
+      totalReward: this.totalReward,
+    }, null, 2);
+  }
+
+  /** Import pre-trained model weights */
+  importModelJSON(jsonString) {
+    try {
+      const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+      if (data.qTable && Array.isArray(data.qTable)) {
+        this.qTable = data.qTable;
+        this.numBands = data.numBands ?? this.numBands;
+        this.alpha = data.alpha ?? this.alpha;
+        this.gamma = data.gamma ?? this.gamma;
+        this.epsilon = data.epsilon ?? this.epsilonMin;
+        this.steps = data.steps ?? 0;
+        return true;
+      }
+    } catch (e) {
+      console.error('Failed to import model weights:', e);
+    }
+    return false;
   }
 }
 
-/**
- * Upper Confidence Bound (UCB) Agent — Multi-Armed Bandit
- */
+// ─── 3. Upper Confidence Bound (UCB-1 Multi-Armed Bandit) ──────────────────────
 class UCBAgent {
   constructor(numBands, c = 2.0) {
     this.numBands = numBands;
-    this.c = c;  // exploration constant
+    this.c = c; // Exploration constant
     this.counts = new Array(numBands).fill(0);
     this.values = new Array(numBands).fill(0);
     this.t = 0;
@@ -696,14 +1909,17 @@ class UCBAgent {
   }
 
   selectBand() {
-    // Ensure each band is tried at least once
+    // Initialize: ensure every channel is sampled at least once
     for (let b = 0; b < this.numBands; b++) {
       if (this.counts[b] === 0) return b;
     }
     let maxUCB = -Infinity, bestBand = 0;
     this.values.forEach((val, b) => {
       const ucb = val + this.c * Math.sqrt(Math.log(this.t + 1) / this.counts[b]);
-      if (ucb > maxUCB) { maxUCB = ucb; bestBand = b; }
+      if (ucb > maxUCB) {
+        maxUCB = ucb;
+        bestBand = b;
+      }
     });
     return bestBand;
   }
@@ -726,10 +1942,13 @@ class UCBAgent {
 }
 
 
-// --- Strategies ---
+
+// ==========================================
+// 3. SCAN SCHEDULERS & STRATEGIES
+// ==========================================
 /**
  * Scan Strategies / Schedulers
- * Each strategy implements: selectBand(state) and update(band, reward, activity)
+ * Each strategy implements: selectBand(t) and update(band, reward, activity, t)
  */
 
 
@@ -786,6 +2005,33 @@ class PriorityStrategy {
   reset() { this.idx = 0; }
 }
 
+class PeriodicCoincidenceStrategy {
+  constructor(numBands) {
+    this.numBands = numBands;
+    this.estimator = new OptimalPeriodicEstimator(numBands);
+    this.name = 'Periodic Coincidence (Optimal)';
+    this.color = '#06b6d4';
+    this.description = 'Explicit radar PRI & phase estimator. Synchronizes receiver dwell clock to match pulse arrival intervals.';
+    this.currentBand = 0;
+    this.lastTuned = 0;
+  }
+  selectBand(t = 0) {
+    this.currentBand = this.estimator.selectBand(t, (this.lastTuned + 1) % this.numBands);
+    this.lastTuned = this.currentBand;
+    return this.currentBand;
+  }
+  update(band, reward, activity, t = 0) {
+    const wasHit = activity && activity[band];
+    this.estimator.observe(band, wasHit, t);
+  }
+  reset() {
+    this.estimator.reset();
+    this.currentBand = 0;
+    this.lastTuned = 0;
+  }
+  getEstimator() { return this.estimator; }
+}
+
 class UCBStrategy {
   constructor(numBands) {
     this.numBands = numBands;
@@ -805,24 +2051,25 @@ class QLearningStrategy {
     this.numBands = numBands;
     this.agent = new QLearningAgent(numBands);
     this.currentBand = 0;
+    this.chosenAction = 0;
     this.name = 'Q-Learning Adaptive (RL)';
     this.color = '#3b82f6';
-    this.description = 'Closed-loop reinforcement learning agent that synchronizes dwell timing to learned emitter PRI cycles.';
+    this.description = 'Closed-loop reinforcement learning agent that optimizes state-action dwell policy via temporal difference learning.';
   }
   selectBand() {
-    const next = this.agent.selectBand(this.currentBand);
-    this._prevBand = this.currentBand;
-    this.currentBand = next;
-    return next;
+    this.chosenAction = this.agent.selectBand(this.currentBand);
+    return this.chosenAction;
   }
-  update(band, reward, activity) {
-    const nextBand = this.agent.selectBand(band);
-    this.agent.update(this._prevBand ?? 0, band, reward, nextBand);
+  update(actionBand, reward, activity) {
+    // Next state s' is the band we just tuned to
+    const nextState = actionBand;
+    this.agent.update(this.currentBand, actionBand, reward, nextState);
+    this.currentBand = nextState;
   }
   reset() {
     this.agent.reset();
     this.currentBand = 0;
-    this._prevBand = 0;
+    this.chosenAction = 0;
   }
   getAgent() { return this.agent; }
 }
@@ -832,6 +2079,7 @@ function createAllStrategies(numBands) {
     new SequentialStrategy(numBands),
     new RandomStrategy(numBands),
     new PriorityStrategy(numBands),
+    new PeriodicCoincidenceStrategy(numBands),
     new UCBStrategy(numBands),
     new QLearningStrategy(numBands),
   ];
@@ -839,9 +2087,20 @@ function createAllStrategies(numBands) {
 
 
 
-// --- Metrics ---
+
+// ==========================================
+// 4. FIGURES OF MERIT TRACKER
+// ==========================================
 /**
  * Performance Metrics (Figures of Merit)
+ * Computes all 7 standard electronic warfare receiver Figures of Merit:
+ * 1. Pd (Probability of Detection / Intercept)
+ * 2. Pfa (Probability of False Alarm)
+ * 3. AIR (Average Intercept Rate)
+ * 4. AITE (Average Intercept Time Error / Detection Latency)
+ * 5. Sensitivity (True Positive Rate / Recall)
+ * 6. CPC (Percentage of Correct Decisions / Accuracy)
+ * 7. Cumulative Reward Score R(t)
  */
 
 class MetricsTracker {
@@ -852,95 +2111,119 @@ class MetricsTracker {
   }
 
   reset() {
-    this.hits = 0;           // receiver on active band
-    this.misses = 0;         // receiver on silent band when others active
-    this.falseAlarms = 0;    // receiver sees nothing but registered attempt
-    this.totalTransmissions = 0; // total band-steps where ANY band was active
-    this.totalSamples = 0;
-    this.interceptTimes = []; // steps from emission start to detection
-    this.emissionStartTimes = {}; // bandIdx -> step when emission started
+    this.hits = 0;               // True Positives (tuned to active signal)
+    this.misses = 0;             // False Negatives (transmissions occurred elsewhere)
+    this.falseAlarms = 0;        // False Positives (tuned to quiet channel but noise triggered)
+    this.trueNegatives = 0;      // Correctly observed quiet channel
+    this.totalTransmissions = 0; // Steps where at least one channel was radiating
+    this.totalSamples = 0;       // Total discrete dwell steps
+    this.interceptTimes = [];    // Latency from emission start to intercept
+    this.emissionStartTimes = {};// bandIdx -> start step
     this.rewardHistory = [];
     this.pdHistory = [];
     this.interceptRateHistory = [];
     this.interceptTimeHistory = [];
+    this.cpcHistory = [];
     this.cumulativeReward = 0;
     this.lastActivity = [];
   }
 
   /**
-   * Record one step result
-   * @param {number} band - band the receiver was tuned to
-   * @param {boolean[]} activity - truth: which bands were active
-   * @param {number} t - current time step
+   * Record one discrete dwell step
+   * @param {number} band - Band index the receiver tuned to
+   * @param {boolean[]} activity - Ground truth: which channels are active
+   * @param {number} t - Current mission time step
+   * @param {boolean[]} [noise] - Optional noise spikes per channel
    */
-  record(band, activity, t) {
+  record(band, activity, t, noise = null) {
     this.totalSamples++;
     const anyActive = activity.some(v => v);
     const bandActive = activity[band];
+    const noiseTriggered = noise && noise[band];
 
     if (anyActive) this.totalTransmissions++;
 
-    // Track emission start times for intercept time error
+    // Track emission pulse arrival times
     activity.forEach((active, b) => {
       if (active && !(this.lastActivity[b])) {
-        this.emissionStartTimes[b] = t; // new emission started
+        this.emissionStartTimes[b] = t;
       }
     });
 
     let reward = 0;
     if (bandActive) {
+      // True Positive (Hit)
       this.hits++;
       reward = 1.0;
-      // Record intercept time
       if (this.emissionStartTimes[band] !== undefined) {
         this.interceptTimes.push(t - this.emissionStartTimes[band]);
         delete this.emissionStartTimes[band];
       }
+    } else if (noiseTriggered) {
+      // False Positive (False Alarm due to thermal noise on quiet channel)
+      this.falseAlarms++;
+      reward = -0.05;
     } else if (anyActive) {
+      // False Negative (Missed active transmission)
       this.misses++;
-      reward = -0.1; // small penalty for missing active band
+      this.trueNegatives++;
+      reward = -0.10;
     } else {
-      reward = 0.0; // no penalty for quiet band
+      // True Negative (Quiet channel correctly scanned)
+      this.trueNegatives++;
+      reward = 0.00;
     }
 
     this.cumulativeReward += reward;
     this.rewardHistory.push(this.cumulativeReward);
 
-    // Pd (rolling window of 50)
-    const window = 50;
     if (this.totalTransmissions > 0) {
       this.pdHistory.push(this.hits / this.totalTransmissions);
     }
-
-    // Intercept rate (hits per 10 steps)
     this.interceptRateHistory.push(this.hits / this.totalSamples);
 
-    // Avg intercept time error
     const avgIntTime = this.interceptTimes.length > 0
       ? this.interceptTimes.reduce((a, b) => a + b, 0) / this.interceptTimes.length
       : 0;
     this.interceptTimeHistory.push(avgIntTime);
+    this.cpcHistory.push(this.cpc);
 
     this.lastActivity = [...activity];
     return reward;
   }
 
+  /** Probability of Detection (Pd): Ratio of intercepted transmissions to total active transmissions */
   get pd() {
     return this.totalTransmissions > 0 ? this.hits / this.totalTransmissions : 0;
   }
 
+  /** Probability of False Alarm (Pfa): False detections divided by quiet opportunities */
   get pfa() {
-    const total = this.totalSamples - this.totalTransmissions;
-    return total > 0 ? this.falseAlarms / total : 0;
+    const quietOpportunities = this.falseAlarms + this.trueNegatives;
+    return quietOpportunities > 0 ? this.falseAlarms / quietOpportunities : 0;
   }
 
+  /** Average Intercept Rate (AIR): Intercept hits divided by total time steps */
   get avgInterceptRate() {
     return this.totalSamples > 0 ? this.hits / this.totalSamples : 0;
   }
 
+  /** Average Intercept Time Error (AITE): Mean latency from pulse start to intercept */
   get avgInterceptTimeError() {
     if (this.interceptTimes.length === 0) return 0;
     return this.interceptTimes.reduce((a, b) => a + b, 0) / this.interceptTimes.length;
+  }
+
+  /** Sensitivity (True Positive Rate / Recall): Hits / (Hits + Misses) */
+  get sensitivity() {
+    const totalPositives = this.hits + this.misses;
+    return totalPositives > 0 ? this.hits / totalPositives : 0;
+  }
+
+  /** Percentage of Correct Decisions / Predictions (CPC / Accuracy) */
+  get cpc() {
+    if (this.totalSamples === 0) return 0;
+    return ((this.hits + this.trueNegatives) / (this.totalSamples + this.misses)) * 100;
   }
 
   get missRate() {
@@ -954,9 +2237,12 @@ class MetricsTracker {
       pfa: this.pfa,
       avgInterceptRate: this.avgInterceptRate,
       avgInterceptTimeError: this.avgInterceptTimeError,
+      sensitivity: this.sensitivity,
+      cpc: this.cpc,
       missRate: this.missRate,
       hits: this.hits,
       misses: this.misses,
+      falseAlarms: this.falseAlarms,
       totalSamples: this.totalSamples,
       cumulativeReward: this.cumulativeReward,
     };
@@ -964,16 +2250,21 @@ class MetricsTracker {
 }
 
 
-// --- Main ---
+
+// ==========================================
+// 5. MAIN APPLICATION CONTROLLER
+// ==========================================
 
 
 
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const NUM_BANDS = 16;
+let NUM_BANDS = 16;
 const WATERFALL_COLS = 80; // time steps visible in waterfall
 
-let env = new RFEnvironment({ numBands: NUM_BANDS });
+let currentSeed = 42;
+let isEvalMode = false;
+let env = new RFEnvironment({ numBands: NUM_BANDS, seed: currentSeed });
 let strategies = createAllStrategies(NUM_BANDS);
 let metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
 let running = false;
@@ -984,7 +2275,7 @@ let activeTab = 'dashboard';
 
 // Waterfall buffer: [time][band] = { activity: bool, receiver: strategyIndex[] }
 let waterfallBuffer = [];
-let receiverPositions = strategies.map(() => []); // per strategy, last N band positions
+let receiverPositions = strategies.map(() => []);
 
 // Chart instances
 let pdChart, rewardChart, bandDensityChart, interceptRateChart, compareChart;
@@ -1011,6 +2302,59 @@ function initUI() {
   document.getElementById('btn-reset').addEventListener('click', () => resetSim());
   document.getElementById('btn-step').addEventListener('click', () => stepOnce());
 
+  // Train vs Evaluation mode toggle
+  const modeBtn = document.getElementById('btn-mode-toggle');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', () => {
+      isEvalMode = !isEvalMode;
+      const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+      if (qStrat) qStrat.getAgent().setEvaluationMode(isEvalMode);
+
+      const modeBadge = document.getElementById('mode-badge');
+      const modeLabel = document.getElementById('btn-mode-label');
+      if (modeBadge) {
+        modeBadge.textContent = isEvalMode ? 'EVALUATION (FROZEN)' : 'TRAINING (EXPLORE)';
+        modeBadge.style.color = isEvalMode ? 'var(--accent-green)' : 'var(--accent-blue)';
+      }
+      if (modeLabel) {
+        modeLabel.textContent = isEvalMode ? 'Mode: Eval (Frozen)' : 'Mode: Train (Explore)';
+      }
+    });
+  }
+
+  // PRNG Seed Selector
+  const seedSelect = document.getElementById('seed-select');
+  if (seedSelect) {
+    seedSelect.addEventListener('change', e => {
+      if (e.target.value === 'random') {
+        currentSeed = Math.floor(Math.random() * 100000);
+      } else {
+        currentSeed = parseInt(e.target.value, 10);
+      }
+      const seedDisplay = document.getElementById('current-seed-display');
+      if (seedDisplay) seedDisplay.textContent = currentSeed;
+      resetSim();
+    });
+  }
+
+  // Export CSV
+  const exportBtn = document.getElementById('btn-export-csv');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportCSVReport);
+  }
+
+  // Model Persistence: Save & Load
+  const exportWeightsBtn = document.getElementById('btn-export-weights');
+  if (exportWeightsBtn) {
+    exportWeightsBtn.addEventListener('click', exportModelWeights);
+  }
+
+  const importWeightsBtn = document.getElementById('btn-import-weights');
+  if (importWeightsBtn) {
+    importWeightsBtn.addEventListener('click', importModelWeights);
+  }
+
+  // Speed Slider
   document.getElementById('speed-slider').addEventListener('input', e => {
     simSpeed = 1005 - parseInt(e.target.value);
     document.getElementById('speed-label').textContent = `${Math.round(1000 / simSpeed)} Hz`;
@@ -1020,8 +2364,10 @@ function initUI() {
     }
   });
 
+  // Channel Count Selector
   document.getElementById('bands-select').addEventListener('change', e => {
-    resetSim(parseInt(e.target.value));
+    NUM_BANDS = parseInt(e.target.value);
+    resetSim(NUM_BANDS);
   });
 }
 
@@ -1029,9 +2375,7 @@ function updateHeaderState() {
   const badge = document.getElementById('live-badge');
   const liveText = document.getElementById('live-text');
   const engineStatus = document.getElementById('engine-status');
-  const headerChannels = document.getElementById('header-channels');
 
-  if (headerChannels) headerChannels.textContent = `${env.numBands} CHANNELS`;
   if (badge && liveText && engineStatus) {
     if (running) {
       badge.classList.remove('paused');
@@ -1061,14 +2405,14 @@ function switchTab(tab) {
 
 // ─── Simulation Loop ──────────────────────────────────────────────────────────
 function stepOnce() {
-  const activity = env.step();
+  const { activity, noise } = env.step();
   stepCount++;
 
   // Each strategy independently picks a band and receives reward
   strategies.forEach((strat, i) => {
-    const band = strat.selectBand();
-    const reward = metrics[i].record(band, activity, stepCount);
-    strat.update(band, reward, activity);
+    const band = strat.selectBand(stepCount);
+    const reward = metrics[i].record(band, activity, stepCount, noise);
+    strat.update(band, reward, activity, stepCount);
     receiverPositions[i].push(band);
     if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
   });
@@ -1111,8 +2455,11 @@ function pauseSim() {
 function resetSim(numBands) {
   pauseSim();
   const nb = numBands ?? NUM_BANDS;
-  env = new RFEnvironment({ numBands: nb });
+  env = new RFEnvironment({ numBands: nb, seed: currentSeed });
   strategies = createAllStrategies(nb);
+  const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+  if (qStrat) qStrat.getAgent().setEvaluationMode(isEvalMode);
+
   metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
   receiverPositions = strategies.map(() => []);
   waterfallBuffer = [];
@@ -1161,7 +2508,6 @@ function drawWaterfall() {
       const x = col * cellW;
       const y = (numBands - 1 - band) * cellH;
       if (active) {
-        // High-contrast tactical green phosphor glow
         ctx.fillStyle = '#10b981';
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 0.5, cellH - 0.5);
       } else {
@@ -1196,17 +2542,19 @@ function drawWaterfall() {
 // ─── Metric Cards ─────────────────────────────────────────────────────────────
 function updateMetricCards() {
   const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
+  const periodicIdx = strategies.findIndex(s => s.name.includes('Periodic'));
   const seqIdx = 0;
   const qm = metrics[qIdx >= 0 ? qIdx : 0];
+  const pm = periodicIdx >= 0 ? metrics[periodicIdx] : qm;
   const sm = metrics[seqIdx];
 
   const cards = [
     { id: 'kpi-pd', value: (qm.pd * 100).toFixed(1) + '%' },
+    { id: 'kpi-periodic-pd', value: (pm.pd * 100).toFixed(1) + '%' },
     { id: 'kpi-seq-pd', value: (sm.pd * 100).toFixed(1) + '%' },
-    { id: 'kpi-reward', value: qm.cumulativeReward.toFixed(1) },
-    { id: 'kpi-intercept-rate', value: (qm.avgInterceptRate * 100).toFixed(1) + '%' },
+    { id: 'kpi-cpc', value: qm.cpc.toFixed(1) + '%' },
     { id: 'kpi-intercept-time', value: qm.avgInterceptTimeError.toFixed(2) + ' steps' },
-    { id: 'kpi-steps', value: stepCount.toLocaleString() },
+    { id: 'kpi-reward', value: qm.cumulativeReward.toFixed(1) },
   ];
 
   cards.forEach(c => {
@@ -1372,7 +2720,6 @@ function updateLiveCharts() {
   if (stepCount % CHART_SUBSAMPLE !== 0) return;
   const label = stepCount.toString();
 
-  // Pd chart
   pdChart.data.labels.push(label);
   strategies.forEach((s, i) => pdChart.data.datasets[i].data.push((metrics[i].pd * 100).toFixed(2)));
   if (pdChart.data.labels.length > 150) {
@@ -1381,7 +2728,6 @@ function updateLiveCharts() {
   }
   pdChart.update('none');
 
-  // Reward chart
   rewardChart.data.labels.push(label);
   strategies.forEach((s, i) => rewardChart.data.datasets[i].data.push(metrics[i].cumulativeReward.toFixed(2)));
   if (rewardChart.data.labels.length > 150) {
@@ -1390,7 +2736,6 @@ function updateLiveCharts() {
   }
   rewardChart.update('none');
 
-  // Intercept rate chart
   interceptRateChart.data.labels.push(label);
   strategies.forEach((s, i) => interceptRateChart.data.datasets[i].data.push((metrics[i].avgInterceptRate * 100).toFixed(2)));
   if (interceptRateChart.data.labels.length > 150) {
@@ -1399,7 +2744,6 @@ function updateLiveCharts() {
   }
   interceptRateChart.update('none');
 
-  // Band density
   const density = env.getBandDensity();
   bandDensityChart.data.datasets[0].data = density.map(d => (d * 100).toFixed(1));
   bandDensityChart.data.datasets[0].backgroundColor = density.map(d => {
@@ -1414,7 +2758,7 @@ function updateCompareChart() {
   const ctx = document.getElementById('chart-compare');
   if (!ctx) return;
 
-  const labels = ['Pd (%)', 'AIR (%)', 'Efficiency (%)', 'Low Latency Score'];
+  const labels = ['Pd (%)', 'AIR (%)', 'Sensitivity (%)', 'CPC (%)', 'Low Latency Score'];
   compareChart = new Chart(ctx, {
     type: 'radar',
     data: {
@@ -1426,7 +2770,8 @@ function updateCompareChart() {
         data: [
           (metrics[i].pd * 100).toFixed(1),
           (metrics[i].avgInterceptRate * 100).toFixed(1),
-          (100 - metrics[i].missRate * 100).toFixed(1),
+          (metrics[i].sensitivity * 100).toFixed(1),
+          metrics[i].cpc.toFixed(1),
           Math.max(0, 10 - metrics[i].avgInterceptTimeError).toFixed(1),
         ],
         pointBackgroundColor: s.color,
@@ -1452,59 +2797,72 @@ function updateCompareChart() {
         r: {
           ticks: { color: '#64748b', backdropColor: 'transparent', font: { family: 'JetBrains Mono', size: 9 } },
           grid: { color: 'rgba(148, 163, 184, 0.12)' },
-          pointLabels: { color: '#cbd5e1', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } },
+          pointLabels: { color: '#cbd5e1', font: { family: 'Plus Jakarta Sans', size: 10, weight: 600 } },
         },
       },
     },
   });
 }
 
-// ─── Q-Table Visualization ────────────────────────────────────────────────────
+// ─── Q-Table & Periodic Tracker Visualization ─────────────────────────────────
 function renderQTable() {
   const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
-  if (qIdx < 0) return;
-  const agent = strategies[qIdx].getAgent();
-  const qTable = agent.getQTableFlat();
-  const container = document.getElementById('qtable-container');
-  if (!container) return;
+  if (qIdx >= 0) {
+    const agent = strategies[qIdx].getAgent();
+    const qTable = agent.getQTableFlat();
+    const container = document.getElementById('qtable-container');
+    if (container) {
+      const numBands = qTable.length;
+      let maxQ = 0, minQ = 0;
+      qTable.forEach(row => row.forEach(v => {
+        maxQ = Math.max(maxQ, v);
+        minQ = Math.min(minQ, v);
+      }));
 
-  const numBands = qTable.length;
-  let maxQ = 0, minQ = 0;
-  qTable.forEach(row => row.forEach(v => {
-    maxQ = Math.max(maxQ, v);
-    minQ = Math.min(minQ, v);
-  }));
+      let html = '<table class="qtable"><thead><tr><th>From \\ To</th>';
+      for (let b = 0; b < numBands; b++) html += `<th>CH${b}</th>`;
+      html += '</tr></thead><tbody>';
 
-  let html = '<table class="qtable"><thead><tr><th>From \\ To</th>';
-  for (let b = 0; b < numBands; b++) html += `<th>CH${b}</th>`;
-  html += '</tr></thead><tbody>';
+      qTable.forEach((row, from) => {
+        html += `<tr><td class="qtable-header">CH${from}</td>`;
+        row.forEach((q, to) => {
+          const norm = maxQ > minQ ? (q - minQ) / (maxQ - minQ) : 0;
+          const alpha = 0.08 + norm * 0.75;
+          const bg = norm > 0 ? `rgba(59, 130, 246, ${alpha})` : 'rgba(15, 23, 42, 0.4)';
+          const textColor = norm > 0.5 ? '#ffffff' : 'var(--text-muted)';
+          html += `<td style="background:${bg};color:${textColor}" title="Q[CH${from} → CH${to}] = ${q.toFixed(3)}">${q.toFixed(2)}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
 
-  qTable.forEach((row, from) => {
-    html += `<tr><td class="qtable-header">CH${from}</td>`;
-    row.forEach((q, to) => {
-      const norm = maxQ > minQ ? (q - minQ) / (maxQ - minQ) : 0;
-      const alpha = 0.08 + norm * 0.75;
-      const bg = norm > 0 ? `rgba(59, 130, 246, ${alpha})` : 'rgba(15, 23, 42, 0.4)';
-      const textColor = norm > 0.5 ? '#ffffff' : 'var(--text-muted)';
-      html += `<td style="background:${bg};color:${textColor}" title="Q[CH${from} → CH${to}] = ${q.toFixed(3)}">${q.toFixed(2)}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
+    const epEl = document.getElementById('epsilon-display');
+    if (epEl) epEl.textContent = (agent.evalMode ? 0.0 : agent.epsilon * 100).toFixed(1) + '%';
+  }
 
-  // Epsilon display
-  const epEl = document.getElementById('epsilon-display');
-  if (epEl) epEl.textContent = (agent.epsilon * 100).toFixed(1) + '%';
-  const ucbIdx = strategies.findIndex(s => s.name.includes('UCB'));
-  const ucbAgent = strategies[ucbIdx]?.getAgent();
-  if (ucbAgent) {
-    const countsEl = document.getElementById('ucb-counts');
-    if (countsEl) {
-      const maxCount = Math.max(...ucbAgent.counts, 1);
-      countsEl.innerHTML = ucbAgent.counts.map((c, i) =>
-        `<div class="ucb-bar"><span style="width:36px">CH${i}</span><div class="ucb-fill" style="width:${Math.min((c / maxCount) * 100, 100)}%;background:${strategies[ucbIdx].color}"></div><span style="width:28px;text-align:right">${c}</span></div>`
-      ).join('');
+  // Periodic Tracker Estimates
+  const periodicIdx = strategies.findIndex(s => s.name.includes('Periodic'));
+  if (periodicIdx >= 0) {
+    const est = strategies[periodicIdx].getEstimator();
+    const pEl = document.getElementById('periodic-estimates');
+    if (pEl && est) {
+      let rows = '';
+      for (let b = 0; b < est.numBands; b++) {
+        const T = est.estimatedPeriod[b];
+        const phi = est.estimatedPhase[b];
+        const conf = est.confidence[b];
+        if (T !== null) {
+          rows += `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+            <span style="color:var(--accent-cyan);font-weight:600">CH${b.toString().padStart(2, '0')}:</span>
+            <span>T_est = ${T} steps</span>
+            <span>Phase = ${phi}</span>
+            <span style="color:var(--accent-green)">Conf = ${(conf * 100).toFixed(0)}%</span>
+          </div>`;
+        }
+      }
+      pEl.innerHTML = rows || '<div style="color:var(--text-dim);padding:0.4rem 0">Observing RF spectrum for pulse arrivals...</div>';
     }
   }
 }
@@ -1530,6 +2888,7 @@ function renderEmitterTable() {
   if (!tbody) return;
   const typeMap = {
     periodic: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: 'PERIODIC RADAR' },
+    spatial_scan: { bg: 'rgba(6, 182, 212, 0.15)', color: '#22d3ee', label: 'SPATIAL SCAN 360°' },
     agile: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: 'AGILE HOPPER' },
     intermittent: { bg: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', label: 'INTERMITTENT' },
     burst: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', label: 'BURST EMITTER' },
@@ -1537,18 +2896,31 @@ function renderEmitterTable() {
 
   tbody.innerHTML = env.getEmitterSummary().map(e => {
     const meta = typeMap[e.type] || { bg: 'rgba(148,163,184,0.1)', color: '#cbd5e1', label: e.type.toUpperCase() };
+    const timing = e.config.period
+      ? `${e.config.period} steps`
+      : e.config.rotationPeriod
+      ? `Rot: ${e.config.rotationPeriod} steps (${e.config.beamwidthDeg}° beam)`
+      : e.config.hopInterval
+      ? `Hop: ${e.config.hopInterval} steps`
+      : '—';
+    const prob = e.config.duty
+      ? (e.config.duty * 100).toFixed(0) + '% (Duty)'
+      : e.config.txProb
+      ? (e.config.txProb * 100).toFixed(0) + '% (Prob)'
+      : '—';
+
     return `<tr>
       <td style="font-weight:600;color:var(--text-muted)">#${e.id}</td>
       <td><span class="badge" style="background:${meta.bg};color:${meta.color};border:1px solid ${meta.color}40">${meta.label}</span></td>
       <td>CH${e.band.toString().padStart(2, '0')}</td>
-      <td>${e.config.period ? e.config.period + ' steps' : e.config.hopInterval ? e.config.hopInterval + ' steps' : '—'}</td>
-      <td>${e.config.duty ? (e.config.duty * 100).toFixed(0) + '% (Duty)' : e.config.txProb ? (e.config.txProb * 100).toFixed(0) + '% (Prob)' : '—'}</td>
+      <td>${timing}</td>
+      <td>${prob}</td>
       <td><span class="status-dot ${e.active ? 'active' : ''}"></span><span style="color:${e.active ? 'var(--accent-green)' : 'var(--text-dim)'};font-weight:600">${e.active ? 'TRANSMITTING' : 'QUIET'}</span></td>
     </tr>`;
   }).join('');
 }
 
-// ─── Analysis Tab ─────────────────────────────────────────────────────────────
+// ─── Analysis Tab (All 7 Figures of Merit) ──────────────────────────────────────
 function renderAnalysis() {
   const tbody = document.getElementById('analysis-tbody');
   if (!tbody) return;
@@ -1560,8 +2932,11 @@ function renderAnalysis() {
       <td>${(m.pfa * 100).toFixed(2)}%</td>
       <td>${(m.avgInterceptRate * 100).toFixed(1)}%</td>
       <td>${m.avgInterceptTimeError.toFixed(2)}</td>
+      <td>${(m.sensitivity * 100).toFixed(1)}%</td>
+      <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.hits}</td>
       <td>${m.misses}</td>
+      <td>${m.falseAlarms}</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
     </tr>`;
   }).join('');
@@ -1578,14 +2953,66 @@ function updateCompareSummaryTable() {
       <td>${(m.pfa * 100).toFixed(2)}%</td>
       <td>${(m.avgInterceptRate * 100).toFixed(1)}%</td>
       <td>${m.avgInterceptTimeError.toFixed(2)}</td>
-      <td>${m.hits}</td>
-      <td>${m.misses}</td>
+      <td>${(m.sensitivity * 100).toFixed(1)}%</td>
+      <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
     </tr>`;
   }).join('');
 }
 
-// Interval updates
+// ─── CSV & Model Weight Exporters ─────────────────────────────────────────────
+function exportCSVReport() {
+  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward\n';
+  strategies.forEach((s, i) => {
+    const m = metrics[i].getSummary();
+    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `EW_SmartScan_Metrics_T${stepCount}_Seed${currentSeed}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportModelWeights() {
+  const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+  if (!qStrat) return;
+  const json = qStrat.getAgent().exportModelJSON();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `qlearning_model_weights_T${stepCount}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importModelWeights() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+      if (qStrat && qStrat.getAgent().importModelJSON(ev.target.result)) {
+        alert('Model weights imported successfully!');
+        renderQTable();
+      } else {
+        alert('Invalid model weights file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ─── Interval Timers ──────────────────────────────────────────────────────────
 setInterval(() => {
   if (running && activeTab === 'dashboard') renderEmitterTable();
   if (activeTab === 'analysis') renderAnalysis();
@@ -1597,6 +3024,7 @@ setInterval(() => {
     updateCompareChart();
   }
 }, 1000);
+
 
 
 </script>

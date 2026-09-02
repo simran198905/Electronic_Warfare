@@ -1,9 +1,9 @@
 /**
  * Scan Strategies / Schedulers
- * Each strategy implements: selectBand(state) and update(band, reward, activity)
+ * Each strategy implements: selectBand(t) and update(band, reward, activity, t)
  */
 
-import { QLearningAgent, UCBAgent } from './qlearning.js';
+import { QLearningAgent, UCBAgent, OptimalPeriodicEstimator } from './qlearning.js';
 
 export class SequentialStrategy {
   constructor(numBands) {
@@ -57,6 +57,33 @@ export class PriorityStrategy {
   reset() { this.idx = 0; }
 }
 
+export class PeriodicCoincidenceStrategy {
+  constructor(numBands) {
+    this.numBands = numBands;
+    this.estimator = new OptimalPeriodicEstimator(numBands);
+    this.name = 'Periodic Coincidence (Optimal)';
+    this.color = '#06b6d4';
+    this.description = 'Explicit radar PRI & phase estimator. Synchronizes receiver dwell clock to match pulse arrival intervals.';
+    this.currentBand = 0;
+    this.lastTuned = 0;
+  }
+  selectBand(t = 0) {
+    this.currentBand = this.estimator.selectBand(t, (this.lastTuned + 1) % this.numBands);
+    this.lastTuned = this.currentBand;
+    return this.currentBand;
+  }
+  update(band, reward, activity, t = 0) {
+    const wasHit = activity && activity[band];
+    this.estimator.observe(band, wasHit, t);
+  }
+  reset() {
+    this.estimator.reset();
+    this.currentBand = 0;
+    this.lastTuned = 0;
+  }
+  getEstimator() { return this.estimator; }
+}
+
 export class UCBStrategy {
   constructor(numBands) {
     this.numBands = numBands;
@@ -76,24 +103,25 @@ export class QLearningStrategy {
     this.numBands = numBands;
     this.agent = new QLearningAgent(numBands);
     this.currentBand = 0;
+    this.chosenAction = 0;
     this.name = 'Q-Learning Adaptive (RL)';
     this.color = '#3b82f6';
-    this.description = 'Closed-loop reinforcement learning agent that synchronizes dwell timing to learned emitter PRI cycles.';
+    this.description = 'Closed-loop reinforcement learning agent that optimizes state-action dwell policy via temporal difference learning.';
   }
   selectBand() {
-    const next = this.agent.selectBand(this.currentBand);
-    this._prevBand = this.currentBand;
-    this.currentBand = next;
-    return next;
+    this.chosenAction = this.agent.selectBand(this.currentBand);
+    return this.chosenAction;
   }
-  update(band, reward, activity) {
-    const nextBand = this.agent.selectBand(band);
-    this.agent.update(this._prevBand ?? 0, band, reward, nextBand);
+  update(actionBand, reward, activity) {
+    // Next state s' is the band we just tuned to
+    const nextState = actionBand;
+    this.agent.update(this.currentBand, actionBand, reward, nextState);
+    this.currentBand = nextState;
   }
   reset() {
     this.agent.reset();
     this.currentBand = 0;
-    this._prevBand = 0;
+    this.chosenAction = 0;
   }
   getAgent() { return this.agent; }
 }
@@ -103,8 +131,10 @@ export function createAllStrategies(numBands) {
     new SequentialStrategy(numBands),
     new RandomStrategy(numBands),
     new PriorityStrategy(numBands),
+    new PeriodicCoincidenceStrategy(numBands),
     new UCBStrategy(numBands),
     new QLearningStrategy(numBands),
   ];
 }
+
 

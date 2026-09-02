@@ -1,12 +1,14 @@
-import { RFEnvironment } from './simulator.js';
+import { RFEnvironment, SeededRNG } from './simulator.js';
 import { createAllStrategies } from './strategies.js';
 import { MetricsTracker } from './metrics.js';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-const NUM_BANDS = 16;
+let NUM_BANDS = 16;
 const WATERFALL_COLS = 80; // time steps visible in waterfall
 
-let env = new RFEnvironment({ numBands: NUM_BANDS });
+let currentSeed = 42;
+let isEvalMode = false;
+let env = new RFEnvironment({ numBands: NUM_BANDS, seed: currentSeed });
 let strategies = createAllStrategies(NUM_BANDS);
 let metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
 let running = false;
@@ -17,7 +19,7 @@ let activeTab = 'dashboard';
 
 // Waterfall buffer: [time][band] = { activity: bool, receiver: strategyIndex[] }
 let waterfallBuffer = [];
-let receiverPositions = strategies.map(() => []); // per strategy, last N band positions
+let receiverPositions = strategies.map(() => []);
 
 // Chart instances
 let pdChart, rewardChart, bandDensityChart, interceptRateChart, compareChart;
@@ -44,6 +46,59 @@ function initUI() {
   document.getElementById('btn-reset').addEventListener('click', () => resetSim());
   document.getElementById('btn-step').addEventListener('click', () => stepOnce());
 
+  // Train vs Evaluation mode toggle
+  const modeBtn = document.getElementById('btn-mode-toggle');
+  if (modeBtn) {
+    modeBtn.addEventListener('click', () => {
+      isEvalMode = !isEvalMode;
+      const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+      if (qStrat) qStrat.getAgent().setEvaluationMode(isEvalMode);
+
+      const modeBadge = document.getElementById('mode-badge');
+      const modeLabel = document.getElementById('btn-mode-label');
+      if (modeBadge) {
+        modeBadge.textContent = isEvalMode ? 'EVALUATION (FROZEN)' : 'TRAINING (EXPLORE)';
+        modeBadge.style.color = isEvalMode ? 'var(--accent-green)' : 'var(--accent-blue)';
+      }
+      if (modeLabel) {
+        modeLabel.textContent = isEvalMode ? 'Mode: Eval (Frozen)' : 'Mode: Train (Explore)';
+      }
+    });
+  }
+
+  // PRNG Seed Selector
+  const seedSelect = document.getElementById('seed-select');
+  if (seedSelect) {
+    seedSelect.addEventListener('change', e => {
+      if (e.target.value === 'random') {
+        currentSeed = Math.floor(Math.random() * 100000);
+      } else {
+        currentSeed = parseInt(e.target.value, 10);
+      }
+      const seedDisplay = document.getElementById('current-seed-display');
+      if (seedDisplay) seedDisplay.textContent = currentSeed;
+      resetSim();
+    });
+  }
+
+  // Export CSV
+  const exportBtn = document.getElementById('btn-export-csv');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportCSVReport);
+  }
+
+  // Model Persistence: Save & Load
+  const exportWeightsBtn = document.getElementById('btn-export-weights');
+  if (exportWeightsBtn) {
+    exportWeightsBtn.addEventListener('click', exportModelWeights);
+  }
+
+  const importWeightsBtn = document.getElementById('btn-import-weights');
+  if (importWeightsBtn) {
+    importWeightsBtn.addEventListener('click', importModelWeights);
+  }
+
+  // Speed Slider
   document.getElementById('speed-slider').addEventListener('input', e => {
     simSpeed = 1005 - parseInt(e.target.value);
     document.getElementById('speed-label').textContent = `${Math.round(1000 / simSpeed)} Hz`;
@@ -53,8 +108,10 @@ function initUI() {
     }
   });
 
+  // Channel Count Selector
   document.getElementById('bands-select').addEventListener('change', e => {
-    resetSim(parseInt(e.target.value));
+    NUM_BANDS = parseInt(e.target.value);
+    resetSim(NUM_BANDS);
   });
 }
 
@@ -62,9 +119,7 @@ function updateHeaderState() {
   const badge = document.getElementById('live-badge');
   const liveText = document.getElementById('live-text');
   const engineStatus = document.getElementById('engine-status');
-  const headerChannels = document.getElementById('header-channels');
 
-  if (headerChannels) headerChannels.textContent = `${env.numBands} CHANNELS`;
   if (badge && liveText && engineStatus) {
     if (running) {
       badge.classList.remove('paused');
@@ -94,14 +149,14 @@ function switchTab(tab) {
 
 // ─── Simulation Loop ──────────────────────────────────────────────────────────
 function stepOnce() {
-  const activity = env.step();
+  const { activity, noise } = env.step();
   stepCount++;
 
   // Each strategy independently picks a band and receives reward
   strategies.forEach((strat, i) => {
-    const band = strat.selectBand();
-    const reward = metrics[i].record(band, activity, stepCount);
-    strat.update(band, reward, activity);
+    const band = strat.selectBand(stepCount);
+    const reward = metrics[i].record(band, activity, stepCount, noise);
+    strat.update(band, reward, activity, stepCount);
     receiverPositions[i].push(band);
     if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
   });
@@ -144,8 +199,11 @@ function pauseSim() {
 function resetSim(numBands) {
   pauseSim();
   const nb = numBands ?? NUM_BANDS;
-  env = new RFEnvironment({ numBands: nb });
+  env = new RFEnvironment({ numBands: nb, seed: currentSeed });
   strategies = createAllStrategies(nb);
+  const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+  if (qStrat) qStrat.getAgent().setEvaluationMode(isEvalMode);
+
   metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
   receiverPositions = strategies.map(() => []);
   waterfallBuffer = [];
@@ -194,7 +252,6 @@ function drawWaterfall() {
       const x = col * cellW;
       const y = (numBands - 1 - band) * cellH;
       if (active) {
-        // High-contrast tactical green phosphor glow
         ctx.fillStyle = '#10b981';
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 0.5, cellH - 0.5);
       } else {
@@ -229,17 +286,19 @@ function drawWaterfall() {
 // ─── Metric Cards ─────────────────────────────────────────────────────────────
 function updateMetricCards() {
   const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
+  const periodicIdx = strategies.findIndex(s => s.name.includes('Periodic'));
   const seqIdx = 0;
   const qm = metrics[qIdx >= 0 ? qIdx : 0];
+  const pm = periodicIdx >= 0 ? metrics[periodicIdx] : qm;
   const sm = metrics[seqIdx];
 
   const cards = [
     { id: 'kpi-pd', value: (qm.pd * 100).toFixed(1) + '%' },
+    { id: 'kpi-periodic-pd', value: (pm.pd * 100).toFixed(1) + '%' },
     { id: 'kpi-seq-pd', value: (sm.pd * 100).toFixed(1) + '%' },
-    { id: 'kpi-reward', value: qm.cumulativeReward.toFixed(1) },
-    { id: 'kpi-intercept-rate', value: (qm.avgInterceptRate * 100).toFixed(1) + '%' },
+    { id: 'kpi-cpc', value: qm.cpc.toFixed(1) + '%' },
     { id: 'kpi-intercept-time', value: qm.avgInterceptTimeError.toFixed(2) + ' steps' },
-    { id: 'kpi-steps', value: stepCount.toLocaleString() },
+    { id: 'kpi-reward', value: qm.cumulativeReward.toFixed(1) },
   ];
 
   cards.forEach(c => {
@@ -405,7 +464,6 @@ function updateLiveCharts() {
   if (stepCount % CHART_SUBSAMPLE !== 0) return;
   const label = stepCount.toString();
 
-  // Pd chart
   pdChart.data.labels.push(label);
   strategies.forEach((s, i) => pdChart.data.datasets[i].data.push((metrics[i].pd * 100).toFixed(2)));
   if (pdChart.data.labels.length > 150) {
@@ -414,7 +472,6 @@ function updateLiveCharts() {
   }
   pdChart.update('none');
 
-  // Reward chart
   rewardChart.data.labels.push(label);
   strategies.forEach((s, i) => rewardChart.data.datasets[i].data.push(metrics[i].cumulativeReward.toFixed(2)));
   if (rewardChart.data.labels.length > 150) {
@@ -423,7 +480,6 @@ function updateLiveCharts() {
   }
   rewardChart.update('none');
 
-  // Intercept rate chart
   interceptRateChart.data.labels.push(label);
   strategies.forEach((s, i) => interceptRateChart.data.datasets[i].data.push((metrics[i].avgInterceptRate * 100).toFixed(2)));
   if (interceptRateChart.data.labels.length > 150) {
@@ -432,7 +488,6 @@ function updateLiveCharts() {
   }
   interceptRateChart.update('none');
 
-  // Band density
   const density = env.getBandDensity();
   bandDensityChart.data.datasets[0].data = density.map(d => (d * 100).toFixed(1));
   bandDensityChart.data.datasets[0].backgroundColor = density.map(d => {
@@ -447,7 +502,7 @@ function updateCompareChart() {
   const ctx = document.getElementById('chart-compare');
   if (!ctx) return;
 
-  const labels = ['Pd (%)', 'AIR (%)', 'Efficiency (%)', 'Low Latency Score'];
+  const labels = ['Pd (%)', 'AIR (%)', 'Sensitivity (%)', 'CPC (%)', 'Low Latency Score'];
   compareChart = new Chart(ctx, {
     type: 'radar',
     data: {
@@ -459,7 +514,8 @@ function updateCompareChart() {
         data: [
           (metrics[i].pd * 100).toFixed(1),
           (metrics[i].avgInterceptRate * 100).toFixed(1),
-          (100 - metrics[i].missRate * 100).toFixed(1),
+          (metrics[i].sensitivity * 100).toFixed(1),
+          metrics[i].cpc.toFixed(1),
           Math.max(0, 10 - metrics[i].avgInterceptTimeError).toFixed(1),
         ],
         pointBackgroundColor: s.color,
@@ -485,59 +541,72 @@ function updateCompareChart() {
         r: {
           ticks: { color: '#64748b', backdropColor: 'transparent', font: { family: 'JetBrains Mono', size: 9 } },
           grid: { color: 'rgba(148, 163, 184, 0.12)' },
-          pointLabels: { color: '#cbd5e1', font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 } },
+          pointLabels: { color: '#cbd5e1', font: { family: 'Plus Jakarta Sans', size: 10, weight: 600 } },
         },
       },
     },
   });
 }
 
-// ─── Q-Table Visualization ────────────────────────────────────────────────────
+// ─── Q-Table & Periodic Tracker Visualization ─────────────────────────────────
 function renderQTable() {
   const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
-  if (qIdx < 0) return;
-  const agent = strategies[qIdx].getAgent();
-  const qTable = agent.getQTableFlat();
-  const container = document.getElementById('qtable-container');
-  if (!container) return;
+  if (qIdx >= 0) {
+    const agent = strategies[qIdx].getAgent();
+    const qTable = agent.getQTableFlat();
+    const container = document.getElementById('qtable-container');
+    if (container) {
+      const numBands = qTable.length;
+      let maxQ = 0, minQ = 0;
+      qTable.forEach(row => row.forEach(v => {
+        maxQ = Math.max(maxQ, v);
+        minQ = Math.min(minQ, v);
+      }));
 
-  const numBands = qTable.length;
-  let maxQ = 0, minQ = 0;
-  qTable.forEach(row => row.forEach(v => {
-    maxQ = Math.max(maxQ, v);
-    minQ = Math.min(minQ, v);
-  }));
+      let html = '<table class="qtable"><thead><tr><th>From \\ To</th>';
+      for (let b = 0; b < numBands; b++) html += `<th>CH${b}</th>`;
+      html += '</tr></thead><tbody>';
 
-  let html = '<table class="qtable"><thead><tr><th>From \\ To</th>';
-  for (let b = 0; b < numBands; b++) html += `<th>CH${b}</th>`;
-  html += '</tr></thead><tbody>';
+      qTable.forEach((row, from) => {
+        html += `<tr><td class="qtable-header">CH${from}</td>`;
+        row.forEach((q, to) => {
+          const norm = maxQ > minQ ? (q - minQ) / (maxQ - minQ) : 0;
+          const alpha = 0.08 + norm * 0.75;
+          const bg = norm > 0 ? `rgba(59, 130, 246, ${alpha})` : 'rgba(15, 23, 42, 0.4)';
+          const textColor = norm > 0.5 ? '#ffffff' : 'var(--text-muted)';
+          html += `<td style="background:${bg};color:${textColor}" title="Q[CH${from} → CH${to}] = ${q.toFixed(3)}">${q.toFixed(2)}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
 
-  qTable.forEach((row, from) => {
-    html += `<tr><td class="qtable-header">CH${from}</td>`;
-    row.forEach((q, to) => {
-      const norm = maxQ > minQ ? (q - minQ) / (maxQ - minQ) : 0;
-      const alpha = 0.08 + norm * 0.75;
-      const bg = norm > 0 ? `rgba(59, 130, 246, ${alpha})` : 'rgba(15, 23, 42, 0.4)';
-      const textColor = norm > 0.5 ? '#ffffff' : 'var(--text-muted)';
-      html += `<td style="background:${bg};color:${textColor}" title="Q[CH${from} → CH${to}] = ${q.toFixed(3)}">${q.toFixed(2)}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
+    const epEl = document.getElementById('epsilon-display');
+    if (epEl) epEl.textContent = (agent.evalMode ? 0.0 : agent.epsilon * 100).toFixed(1) + '%';
+  }
 
-  // Epsilon display
-  const epEl = document.getElementById('epsilon-display');
-  if (epEl) epEl.textContent = (agent.epsilon * 100).toFixed(1) + '%';
-  const ucbIdx = strategies.findIndex(s => s.name.includes('UCB'));
-  const ucbAgent = strategies[ucbIdx]?.getAgent();
-  if (ucbAgent) {
-    const countsEl = document.getElementById('ucb-counts');
-    if (countsEl) {
-      const maxCount = Math.max(...ucbAgent.counts, 1);
-      countsEl.innerHTML = ucbAgent.counts.map((c, i) =>
-        `<div class="ucb-bar"><span style="width:36px">CH${i}</span><div class="ucb-fill" style="width:${Math.min((c / maxCount) * 100, 100)}%;background:${strategies[ucbIdx].color}"></div><span style="width:28px;text-align:right">${c}</span></div>`
-      ).join('');
+  // Periodic Tracker Estimates
+  const periodicIdx = strategies.findIndex(s => s.name.includes('Periodic'));
+  if (periodicIdx >= 0) {
+    const est = strategies[periodicIdx].getEstimator();
+    const pEl = document.getElementById('periodic-estimates');
+    if (pEl && est) {
+      let rows = '';
+      for (let b = 0; b < est.numBands; b++) {
+        const T = est.estimatedPeriod[b];
+        const phi = est.estimatedPhase[b];
+        const conf = est.confidence[b];
+        if (T !== null) {
+          rows += `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid rgba(148,163,184,0.08)">
+            <span style="color:var(--accent-cyan);font-weight:600">CH${b.toString().padStart(2, '0')}:</span>
+            <span>T_est = ${T} steps</span>
+            <span>Phase = ${phi}</span>
+            <span style="color:var(--accent-green)">Conf = ${(conf * 100).toFixed(0)}%</span>
+          </div>`;
+        }
+      }
+      pEl.innerHTML = rows || '<div style="color:var(--text-dim);padding:0.4rem 0">Observing RF spectrum for pulse arrivals...</div>';
     }
   }
 }
@@ -563,6 +632,7 @@ function renderEmitterTable() {
   if (!tbody) return;
   const typeMap = {
     periodic: { bg: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', label: 'PERIODIC RADAR' },
+    spatial_scan: { bg: 'rgba(6, 182, 212, 0.15)', color: '#22d3ee', label: 'SPATIAL SCAN 360°' },
     agile: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', label: 'AGILE HOPPER' },
     intermittent: { bg: 'rgba(139, 92, 246, 0.15)', color: '#c084fc', label: 'INTERMITTENT' },
     burst: { bg: 'rgba(239, 68, 68, 0.15)', color: '#f87171', label: 'BURST EMITTER' },
@@ -570,18 +640,31 @@ function renderEmitterTable() {
 
   tbody.innerHTML = env.getEmitterSummary().map(e => {
     const meta = typeMap[e.type] || { bg: 'rgba(148,163,184,0.1)', color: '#cbd5e1', label: e.type.toUpperCase() };
+    const timing = e.config.period
+      ? `${e.config.period} steps`
+      : e.config.rotationPeriod
+      ? `Rot: ${e.config.rotationPeriod} steps (${e.config.beamwidthDeg}° beam)`
+      : e.config.hopInterval
+      ? `Hop: ${e.config.hopInterval} steps`
+      : '—';
+    const prob = e.config.duty
+      ? (e.config.duty * 100).toFixed(0) + '% (Duty)'
+      : e.config.txProb
+      ? (e.config.txProb * 100).toFixed(0) + '% (Prob)'
+      : '—';
+
     return `<tr>
       <td style="font-weight:600;color:var(--text-muted)">#${e.id}</td>
       <td><span class="badge" style="background:${meta.bg};color:${meta.color};border:1px solid ${meta.color}40">${meta.label}</span></td>
       <td>CH${e.band.toString().padStart(2, '0')}</td>
-      <td>${e.config.period ? e.config.period + ' steps' : e.config.hopInterval ? e.config.hopInterval + ' steps' : '—'}</td>
-      <td>${e.config.duty ? (e.config.duty * 100).toFixed(0) + '% (Duty)' : e.config.txProb ? (e.config.txProb * 100).toFixed(0) + '% (Prob)' : '—'}</td>
+      <td>${timing}</td>
+      <td>${prob}</td>
       <td><span class="status-dot ${e.active ? 'active' : ''}"></span><span style="color:${e.active ? 'var(--accent-green)' : 'var(--text-dim)'};font-weight:600">${e.active ? 'TRANSMITTING' : 'QUIET'}</span></td>
     </tr>`;
   }).join('');
 }
 
-// ─── Analysis Tab ─────────────────────────────────────────────────────────────
+// ─── Analysis Tab (All 7 Figures of Merit) ──────────────────────────────────────
 function renderAnalysis() {
   const tbody = document.getElementById('analysis-tbody');
   if (!tbody) return;
@@ -593,8 +676,11 @@ function renderAnalysis() {
       <td>${(m.pfa * 100).toFixed(2)}%</td>
       <td>${(m.avgInterceptRate * 100).toFixed(1)}%</td>
       <td>${m.avgInterceptTimeError.toFixed(2)}</td>
+      <td>${(m.sensitivity * 100).toFixed(1)}%</td>
+      <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.hits}</td>
       <td>${m.misses}</td>
+      <td>${m.falseAlarms}</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
     </tr>`;
   }).join('');
@@ -611,14 +697,66 @@ function updateCompareSummaryTable() {
       <td>${(m.pfa * 100).toFixed(2)}%</td>
       <td>${(m.avgInterceptRate * 100).toFixed(1)}%</td>
       <td>${m.avgInterceptTimeError.toFixed(2)}</td>
-      <td>${m.hits}</td>
-      <td>${m.misses}</td>
+      <td>${(m.sensitivity * 100).toFixed(1)}%</td>
+      <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
     </tr>`;
   }).join('');
 }
 
-// Interval updates
+// ─── CSV & Model Weight Exporters ─────────────────────────────────────────────
+function exportCSVReport() {
+  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward\n';
+  strategies.forEach((s, i) => {
+    const m = metrics[i].getSummary();
+    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)}\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `EW_SmartScan_Metrics_T${stepCount}_Seed${currentSeed}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportModelWeights() {
+  const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+  if (!qStrat) return;
+  const json = qStrat.getAgent().exportModelJSON();
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `qlearning_model_weights_T${stepCount}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importModelWeights() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
+      if (qStrat && qStrat.getAgent().importModelJSON(ev.target.result)) {
+        alert('Model weights imported successfully!');
+        renderQTable();
+      } else {
+        alert('Invalid model weights file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ─── Interval Timers ──────────────────────────────────────────────────────────
 setInterval(() => {
   if (running && activeTab === 'dashboard') renderEmitterTable();
   if (activeTab === 'analysis') renderAnalysis();
