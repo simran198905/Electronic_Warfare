@@ -799,60 +799,329 @@ tbody tr:hover {
   padding: 1.35rem;
 }
 
-.briefing-card h3 {
+/* ─── Interactive Operator Station & Duel Arena ────────────────────────────── */
+.operator-station {
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-panel) 100%);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.operator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.operator-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.operator-title {
   font-family: var(--font-ui);
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   color: var(--text-main);
-  margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.briefing-card p {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.65;
-  margin-bottom: 0.85rem;
-}
-
-.briefing-card ul {
-  list-style: none;
-}
-
-.briefing-card li {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border-subtle);
+.audio-bar {
   display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-md);
+}
+
+.btn-audio-toggle {
+  background: none;
+  border: 1px solid var(--border-card);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.btn-audio-toggle.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.btn-audio-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.audio-oscilloscope {
+  width: 90px;
+  height: 24px;
+  background: rgba(8, 12, 20, 0.8);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.duel-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.btn-duel {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.3);
+}
+
+.btn-duel:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.duel-timer-badge {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fb7185;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Tactical Piano Channel Keys */
+.channel-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.channel-key {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.channel-key:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+.channel-key.active-human {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: #f43f5e;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35), inset 0 0 8px rgba(244, 63, 94, 0.2);
+}
+
+.channel-key.active-human::before {
+  content: 'OPERATOR RX';
+  position: absolute;
+  top: -8px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  background: #f43f5e;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.channel-key.rf-transmitting {
+  border-bottom: 3px solid var(--accent-green);
+}
+
+.channel-key.rf-hit {
+  animation: key-flash 0.3s ease-out;
+}
+
+@keyframes key-flash {
+  0% { background: rgba(16, 185, 129, 0.6); }
+  100% { background: var(--bg-surface-2); }
+}
+
+.key-id {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.key-hotkey {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+}
+
+.key-signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+}
+
+.key-signal-dot.live {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+}
+
+/* Head-to-Head Split Scoreboard */
+.duel-scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.duel-scorecard {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  position: relative;
+}
+
+.duel-scorecard.human {
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.04);
+}
+
+.duel-scorecard.ai-ql {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.duel-scorecard.ai-periodic {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.04);
+}
+
+.duel-scorecard.baseline-seq {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.ds-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.ds-value {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ds-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.35rem;
+}
+
+/* Debrief Intelligence Card */
+.debrief-panel {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-top: 1rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  animation: slide-up 0.25s ease-out;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.debrief-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.debrief-title {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
-.briefing-card li::before {
-  content: '■';
-  color: var(--accent-blue);
-  font-size: 0.6rem;
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-}
-
-.math-formula {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 0.85rem;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--accent-cyan);
-  margin: 0.5rem 0;
+.debrief-content {
+  font-size: 0.82rem;
+  color: var(--text-main);
+  line-height: 1.6;
 }
 
 /* ─── Responsive Adjustments ──────────────────────────────────────────────── */
 @media (max-width: 960px) {
-  .ml-grid, .compare-grid {
-    grid-template-columns: 1fr;
+  .ml-grid, .compare-grid, .duel-scoreboard {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -875,7 +1144,7 @@ tbody tr:hover {
   .tab-panel {
     padding: 1rem;
   }
-  .charts-row {
+  .charts-row, .duel-scoreboard {
     grid-template-columns: 1fr;
   }
 }

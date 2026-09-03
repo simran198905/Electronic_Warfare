@@ -807,60 +807,329 @@ tbody tr:hover {
   padding: 1.35rem;
 }
 
-.briefing-card h3 {
+/* ─── Interactive Operator Station & Duel Arena ────────────────────────────── */
+.operator-station {
+  background: linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-panel) 100%);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.operator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.operator-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.operator-title {
   font-family: var(--font-ui);
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   color: var(--text-main);
-  margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.briefing-card p {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.65;
-  margin-bottom: 0.85rem;
-}
-
-.briefing-card ul {
-  list-style: none;
-}
-
-.briefing-card li {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--border-subtle);
+.audio-bar {
   display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-card);
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-md);
+}
+
+.btn-audio-toggle {
+  background: none;
+  border: 1px solid var(--border-card);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.6rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.btn-audio-toggle.active {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+.btn-audio-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.audio-oscilloscope {
+  width: 90px;
+  height: 24px;
+  background: rgba(8, 12, 20, 0.8);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.duel-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.btn-duel {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.3);
+}
+
+.btn-duel:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.duel-timer-badge {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fb7185;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Tactical Piano Channel Keys */
+.channel-keys-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.channel-key {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.channel-key:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+}
+
+.channel-key.active-human {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: #f43f5e;
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35), inset 0 0 8px rgba(244, 63, 94, 0.2);
+}
+
+.channel-key.active-human::before {
+  content: 'OPERATOR RX';
+  position: absolute;
+  top: -8px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  background: #f43f5e;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.channel-key.rf-transmitting {
+  border-bottom: 3px solid var(--accent-green);
+}
+
+.channel-key.rf-hit {
+  animation: key-flash 0.3s ease-out;
+}
+
+@keyframes key-flash {
+  0% { background: rgba(16, 185, 129, 0.6); }
+  100% { background: var(--bg-surface-2); }
+}
+
+.key-id {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.key-hotkey {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-elevated);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+}
+
+.key-signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+}
+
+.key-signal-dot.live {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px var(--accent-green);
+}
+
+/* Head-to-Head Split Scoreboard */
+.duel-scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.duel-scorecard {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  position: relative;
+}
+
+.duel-scorecard.human {
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.04);
+}
+
+.duel-scorecard.ai-ql {
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.duel-scorecard.ai-periodic {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.04);
+}
+
+.duel-scorecard.baseline-seq {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.ds-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.ds-value {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ds-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 0.35rem;
+}
+
+/* Debrief Intelligence Card */
+.debrief-panel {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-top: 1rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  animation: slide-up 0.25s ease-out;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.debrief-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.debrief-title {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
 }
 
-.briefing-card li::before {
-  content: '■';
-  color: var(--accent-blue);
-  font-size: 0.6rem;
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-}
-
-.math-formula {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 0.85rem;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  color: var(--accent-cyan);
-  margin: 0.5rem 0;
+.debrief-content {
+  font-size: 0.82rem;
+  color: var(--text-main);
+  line-height: 1.6;
 }
 
 /* ─── Responsive Adjustments ──────────────────────────────────────────────── */
 @media (max-width: 960px) {
-  .ml-grid, .compare-grid {
-    grid-template-columns: 1fr;
+  .ml-grid, .compare-grid, .duel-scoreboard {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -883,7 +1152,7 @@ tbody tr:hover {
   .tab-panel {
     padding: 1rem;
   }
-  .charts-row {
+  .charts-row, .duel-scoreboard {
     grid-template-columns: 1fr;
   }
 }
@@ -968,7 +1237,7 @@ tbody tr:hover {
 </nav>
 
 <!-- ════════════════════════════════════════════════════════════════════════════
-     TAB 1: MISSION CONSOLE (DASHBOARD)
+     TAB 1: MISSION CONSOLE & INTERACTIVE OPERATOR DUEL
 ════════════════════════════════════════════════════════════════════════════ -->
 <main id="tab-dashboard" class="tab-panel active">
 
@@ -1031,6 +1300,117 @@ tbody tr:hover {
     </div>
   </div>
 
+  <!-- ════ INTERACTIVE OPERATOR STATION & SIGINT AUDIO DUEL ════ -->
+  <div class="operator-station">
+    <div class="operator-header">
+      <div class="operator-title-area">
+        <div class="operator-title">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4l3 3"></path></svg>
+          HUMAN OPERATOR STATION · HEAD-TO-HEAD AI DUEL
+        </div>
+        <span class="kpi-badge" style="background:rgba(244,63,94,0.15);color:#fb7185;border:1px solid rgba(244,63,94,0.3)">MANUAL INTERCEPT</span>
+      </div>
+
+      <!-- SIGINT Audio Sonification Bar -->
+      <div class="audio-bar">
+        <button id="btn-audio-toggle" class="btn-audio-toggle" title="Toggle Web Audio RF Sonification">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+          <span id="audio-status-label">Headphones: Muted</span>
+        </button>
+        <input type="range" id="audio-volume" min="0" max="1" step="0.05" value="0.4" style="width:70px;accent-color:var(--accent-green)" title="RF Audio Volume" />
+        <canvas id="audio-scope" class="audio-oscilloscope" width="90" height="24" title="Live RF Audio Waveform"></canvas>
+      </div>
+
+      <!-- Duel Mode Challenge Triggers -->
+      <div class="duel-controls">
+        <button id="btn-duel-30" class="btn-duel" title="Start 30-Second Human vs AI Sprint">
+          ⚔️ 30s Sortie Duel
+        </button>
+        <button id="btn-duel-60" class="btn-duel" style="background:linear-gradient(135deg,#e11d48,#be123c)" title="Start 60-Second Extended Sortie">
+          ⚔️ 60s Sortie
+        </button>
+        <div id="duel-timer-badge" class="duel-timer-badge" style="display:none">
+          ⏱ <span id="duel-timer-val">30s</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:0.75rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+      <span>Tuning Deck — Click or press Hotkeys <code>[1-8]</code> / <code>[Q-I]</code> / <code>[←/→]</code> to intercept signals by sound & timing:</span>
+      <span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--accent-cyan)">Tuned: <strong id="current-human-band-label">CH00</strong></span>
+    </div>
+
+    <!-- Tactical Piano Channel Tuning Keys -->
+    <div id="channel-keys-deck" class="channel-keys-grid"></div>
+
+    <!-- Live Split Scoreboard: Human Operator vs AI -->
+    <div class="duel-scoreboard">
+      <div class="duel-scorecard human">
+        <div class="ds-header">
+          <span style="color:#fb7185">👤 Human Operator</span>
+          <span class="kpi-badge" style="color:#fb7185">MANUAL</span>
+        </div>
+        <div class="ds-value" id="duel-human-pd" style="color:#fb7185">0.0%</div>
+        <div class="ds-stats">
+          <span>Hits: <strong id="duel-human-hits">0</strong></span>
+          <span>Latency: <strong id="duel-human-lat">0.00</strong></span>
+          <span>Score: <strong id="duel-human-rew">0.0</strong></span>
+        </div>
+      </div>
+
+      <div class="duel-scorecard ai-ql">
+        <div class="ds-header">
+          <span style="color:var(--accent-blue)">🧠 Q-Learning AI</span>
+          <span class="kpi-badge" style="color:var(--accent-blue)">ADAPTIVE RL</span>
+        </div>
+        <div class="ds-value" id="duel-ai-pd" style="color:var(--accent-blue)">0.0%</div>
+        <div class="ds-stats">
+          <span>Hits: <strong id="duel-ai-hits">0</strong></span>
+          <span>Latency: <strong id="duel-ai-lat">0.00</strong></span>
+          <span>Score: <strong id="duel-ai-rew">0.0</strong></span>
+        </div>
+      </div>
+
+      <div class="duel-scorecard ai-periodic">
+        <div class="ds-header">
+          <span style="color:var(--accent-cyan)">🎯 Periodic Tracker</span>
+          <span class="kpi-badge" style="color:var(--accent-cyan)">OPTIMAL PRI</span>
+        </div>
+        <div class="ds-value" id="duel-periodic-pd" style="color:var(--accent-cyan)">0.0%</div>
+        <div class="ds-stats">
+          <span>Hits: <strong id="duel-periodic-hits">0</strong></span>
+          <span>Latency: <strong id="duel-periodic-lat">0.00</strong></span>
+          <span>Score: <strong id="duel-periodic-rew">0.0</strong></span>
+        </div>
+      </div>
+
+      <div class="duel-scorecard baseline-seq">
+        <div class="ds-header">
+          <span style="color:var(--accent-red)">🔄 Sequential Sweep</span>
+          <span class="kpi-badge" style="color:var(--accent-red)">BASELINE</span>
+        </div>
+        <div class="ds-value" id="duel-seq-pd" style="color:var(--accent-red)">0.0%</div>
+        <div class="ds-stats">
+          <span>Hits: <strong id="duel-seq-hits">0</strong></span>
+          <span>Latency: <strong id="duel-seq-lat">0.00</strong></span>
+          <span>Score: <strong id="duel-seq-rew">0.0</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Post-Sortie Intelligence Debrief Panel -->
+    <div id="debrief-panel" class="debrief-panel" style="display:none">
+      <div class="debrief-header">
+        <div class="debrief-title">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          TACTICAL SORTIE DEBRIEF: WHY THE AI SOURCED SUPERIOR INTERCEPTS
+        </div>
+        <button id="btn-close-debrief" class="btn btn-ghost" style="padding:0.2rem 0.5rem;font-size:0.75rem">✕ Dismiss</button>
+      </div>
+      <div id="debrief-body" class="debrief-content"></div>
+    </div>
+  </div>
+
   <!-- Telemetry KPI Grid -->
   <div class="kpi-grid">
     <div class="kpi-card" id="kpi-pd">
@@ -1072,6 +1452,7 @@ tbody tr:hover {
     <div class="kpi-card" id="kpi-intercept-time">
       <div class="kpi-header">
         <span class="kpi-label">Avg Intercept Latency</span>
+
         <span class="kpi-badge" style="color:var(--accent-amber)">TIME ERROR</span>
       </div>
       <div class="kpi-value" style="color:var(--accent-amber)">0.00 steps</div>
@@ -2252,8 +2633,452 @@ class MetricsTracker {
 
 
 // ==========================================
-// 5. MAIN APPLICATION CONTROLLER
+// 5. SIGINT AUDIO SONIFICATION ENGINE
 // ==========================================
+/**
+ * SIGINT Audio Sonification Engine
+ * Uses Web Audio API to synthesize defense electronic warfare acoustic signatures:
+ * - PRF pulse buzzes & clicks for periodic radars
+ * - Rotating antenna beam volume swells for spatial scanning radars
+ * - Polyphonic chirp hops for frequency agile transmitters
+ * - Heterodyne signal acquisition lock beeps
+ * - Subtle thermal RF noise floor
+ */
+
+class SIGINTAudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.masterGain = null;
+    this.noiseGain = null;
+    this.toneGain = null;
+    this.analyser = null;
+    this.enabled = false;
+    this.volume = 0.4;
+    this.currentBand = 0;
+    this.carrierFreqs = [];
+    this.noiseNode = null;
+  }
+
+  init(numBands = 16) {
+    if (this.ctx) return;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      console.warn('Web Audio API not supported in this browser.');
+      return;
+    }
+    this.ctx = new AudioCtx();
+
+    // Generate base carrier audio frequencies for each sub-band (220 Hz to 1760 Hz)
+    this.carrierFreqs = Array.from({ length: numBands }, (_, i) => {
+      return 220 * Math.pow(2, (i * 1.5) / numBands);
+    });
+
+    // Master Gain & Analyser
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 256;
+
+    this.masterGain.connect(this.analyser);
+    this.analyser.connect(this.ctx.destination);
+
+    // Tone Sub-Bus
+    this.toneGain = this.ctx.createGain();
+    this.toneGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+    this.toneGain.connect(this.masterGain);
+
+    // Thermal RF Noise Floor Generator
+    this._initNoiseFloor();
+  }
+
+  _initNoiseFloor() {
+    if (!this.ctx) return;
+    const bufferSize = this.ctx.sampleRate * 2;
+    const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.04;
+    }
+
+    this.noiseNode = this.ctx.createBufferSource();
+    this.noiseNode.buffer = buffer;
+    this.noiseNode.loop = true;
+
+    // Filter noise to sound like realistic receiver bandpass thermal floor
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
+    filter.Q.setValueAtTime(1.0, this.ctx.currentTime);
+
+    this.noiseGain = this.ctx.createGain();
+    this.noiseGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+
+    this.noiseNode.connect(filter);
+    filter.connect(this.noiseGain);
+    this.noiseGain.connect(this.masterGain);
+
+    try {
+      this.noiseNode.start(0);
+    } catch (e) {}
+  }
+
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  setMuted(muted) {
+    this.enabled = !muted;
+    if (!this.ctx) this.init();
+    this.resume();
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.enabled ? this.volume : 0, this.ctx.currentTime);
+    }
+  }
+
+  setVolume(vol) {
+    this.volume = Math.max(0, Math.min(1, vol));
+    if (this.masterGain && this.ctx && this.enabled) {
+      this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+    }
+  }
+
+  /**
+   * Synthesize audio event when a receiver dwells on a channel
+   * @param {number} band - Tuned channel index
+   * @param {boolean} active - True if ground truth active transmission
+   * @param {Object} [emitterMeta] - Emitter classification details
+   */
+  playDwellAcoustics(band, active, emitterMeta = null) {
+    if (!this.enabled || !this.ctx || this.ctx.state !== 'running') return;
+    const now = this.ctx.currentTime;
+    const baseFreq = this.carrierFreqs[band] || 440;
+
+    if (!active) {
+      // Quiet channel: momentary subtle click on channel switch
+      this._playChannelSwitchClick(baseFreq, now);
+      return;
+    }
+
+    // Active Signal Intercept Audio Synthesis
+    const type = emitterMeta ? emitterMeta.type : 'periodic';
+
+    switch (type) {
+      case 'spatial_scan':
+        this._playSpatialBeamSweep(baseFreq, now, emitterMeta);
+        break;
+      case 'agile':
+        this._playAgileChirp(baseFreq, now);
+        break;
+      case 'burst':
+      case 'intermittent':
+        this._playBurstPulse(baseFreq, now);
+        break;
+      case 'periodic':
+      default:
+        this._playPeriodicPulse(baseFreq, now);
+        break;
+    }
+  }
+
+  /** Periodic Radar: Crisp PRF pulse train buzz */
+  _playPeriodicPulse(freq, now) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, now);
+
+    // Staccato envelope
+    gain.gain.setValueAtTime(0.0, now);
+    gain.gain.linearRampToValueAtTime(0.35, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+    osc.connect(gain);
+    gain.connect(this.toneGain);
+
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  /** Spatial Scanning Radar: Volume swell imitating rotating antenna mainlobe */
+  _playSpatialBeamSweep(freq, now, meta) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq * 1.25, now);
+
+    // Sweeping amplitude envelope
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.linearRampToValueAtTime(0.45, now + 0.035);
+    gain.gain.linearRampToValueAtTime(0.001, now + 0.09);
+
+    osc.connect(gain);
+    gain.connect(this.toneGain);
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+  }
+
+  /** Frequency Agile Hopper: Rapid frequency modulating chirp */
+  _playAgileChirp(freq, now) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+
+    osc.frequency.setValueAtTime(freq * 0.8, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.6, now + 0.06);
+
+    gain.gain.setValueAtTime(0.0, now);
+    gain.gain.linearRampToValueAtTime(0.4, now + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+    osc.connect(gain);
+    gain.connect(this.toneGain);
+
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  /** Burst Emitter: Fast machine-gun pulse burst */
+  _playBurstPulse(freq, now) {
+    [0, 0.02, 0.04].forEach(offset => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq * 0.95, now + offset);
+
+      gain.gain.setValueAtTime(0.0, now + offset);
+      gain.gain.linearRampToValueAtTime(0.25, now + offset + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.015);
+
+      osc.connect(gain);
+      gain.connect(this.toneGain);
+
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.02);
+    });
+  }
+
+  /** Channel Switch / Dial Click */
+  _playChannelSwitchClick(freq, now) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq * 0.5, now);
+
+    gain.gain.setValueAtTime(0.06, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
+
+    osc.connect(gain);
+    gain.connect(this.toneGain);
+
+    osc.start(now);
+    osc.stop(now + 0.02);
+  }
+
+  /** Hit Feedback: High chime confirmation */
+  playAcquisitionLock(now = null) {
+    if (!this.enabled || !this.ctx) return;
+    const t = now || this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1320, t);
+    osc.frequency.setValueAtTime(1760, t + 0.03);
+
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.09);
+  }
+
+  /** Get Frequency Domain Waveform Data for Live Oscilloscope */
+  getWaveformData() {
+    if (!this.analyser) return new Uint8Array(128);
+    const data = new Uint8Array(this.analyser.frequencyBinCount);
+    this.analyser.getByteTimeDomainData(data);
+    return data;
+  }
+}
+
+const globalAudio = new SIGINTAudioEngine();
+
+
+// ==========================================
+// 6. INTERACTIVE OPERATOR DUEL CONTROLLER
+// ==========================================
+/**
+ * Interactive Operator Station & Duel Controller
+ * Allows human operator to manually scan RF channels by ear and keypress,
+ * competing directly against AI schedulers in real-time.
+ */
+
+
+
+
+const DUEL_MODES = {
+  PRACTICE: 'practice',
+  SORTIE_30: 'sortie_30',
+  SORTIE_60: 'sortie_60',
+};
+
+class OperatorDuelController {
+  constructor(numBands = 16) {
+    this.numBands = numBands;
+    this.humanBand = 0;
+    this.mode = DUEL_MODES.PRACTICE;
+    this.humanMetrics = new MetricsTracker('Human Operator (Manual)', '#f43f5e');
+    this.isActive = false;
+    this.timeRemaining = 30;
+    this.maxTime = 30;
+    this.duelInterval = null;
+    this.onStateChange = null;
+    this.onDebriefReady = null;
+
+    this._initKeyboardListeners();
+  }
+
+  setNumBands(n) {
+    this.numBands = n;
+    this.humanBand = Math.min(this.humanBand, n - 1);
+    this.resetMetrics();
+  }
+
+  resetMetrics() {
+    this.humanMetrics.reset();
+    this.humanBand = 0;
+  }
+
+  startSortie(durationSeconds = 30) {
+    this.resetMetrics();
+    this.maxTime = durationSeconds;
+    this.timeRemaining = durationSeconds;
+    this.mode = durationSeconds === 60 ? DUEL_MODES.SORTIE_60 : DUEL_MODES.SORTIE_30;
+    this.isActive = true;
+
+    if (this.duelInterval) clearInterval(this.duelInterval);
+    this.duelInterval = setInterval(() => {
+      this.timeRemaining--;
+      if (this.onStateChange) this.onStateChange(this.getState());
+      if (this.timeRemaining <= 0) {
+        this.endSortie();
+      }
+    }, 1000);
+
+    if (this.onStateChange) this.onStateChange(this.getState());
+  }
+
+  endSortie() {
+    this.isActive = false;
+    if (this.duelInterval) {
+      clearInterval(this.duelInterval);
+      this.duelInterval = null;
+    }
+    if (this.onDebriefReady) {
+      this.onDebriefReady(this.generateDebrief());
+    }
+    if (this.onStateChange) this.onStateChange(this.getState());
+  }
+
+  /**
+   * Called on every simulation step to evaluate the human operator dwell
+   * @param {boolean[]} activity - Active channels
+   * @param {number} t - Current mission time
+   * @param {boolean[]} noise - Noise triggers
+   * @param {Array} emitters - Active emitter metadata
+   */
+  step(activity, t, noise, emitters) {
+    const reward = this.humanMetrics.record(this.humanBand, activity, t, noise);
+    const wasHit = activity[this.humanBand];
+
+    // Play sonified audio on current tuned human channel
+    const activeEmitter = emitters.find(e => e.band === this.humanBand && e.active);
+    globalAudio.playDwellAcoustics(this.humanBand, wasHit, activeEmitter);
+
+    if (wasHit) {
+      globalAudio.playAcquisitionLock();
+    }
+
+    return { band: this.humanBand, reward, wasHit };
+  }
+
+  tuneTo(band) {
+    if (band >= 0 && band < this.numBands) {
+      this.humanBand = band;
+      if (this.onStateChange) this.onStateChange(this.getState());
+    }
+  }
+
+  tuneDelta(delta) {
+    let next = (this.humanBand + delta) % this.numBands;
+    if (next < 0) next += this.numBands;
+    this.tuneTo(next);
+  }
+
+  _initKeyboardListeners() {
+    const keyMap = {
+      '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7,
+      'q': 8, 'w': 9, 'e': 10, 'r': 11, 't': 12, 'y': 13, 'u': 14, 'i': 15,
+    };
+
+    window.addEventListener('keydown', (e) => {
+      // Ignore when user typing in text input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+      const k = e.key.toLowerCase();
+      if (keyMap[k] !== undefined && keyMap[k] < this.numBands) {
+        this.tuneTo(keyMap[k]);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        this.tuneDelta(-1);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        this.tuneDelta(1);
+      }
+    });
+  }
+
+  getState() {
+    return {
+      humanBand: this.humanBand,
+      mode: this.mode,
+      isActive: this.isActive,
+      timeRemaining: this.timeRemaining,
+      maxTime: this.maxTime,
+      metrics: this.humanMetrics.getSummary(),
+    };
+  }
+
+  /**
+   * Generates intelligence debrief comparing Human vs AI
+   */
+  generateDebrief(aiMetrics = null, periodicEstimator = null) {
+    const hm = this.humanMetrics.getSummary();
+    const humanPd = (hm.pd * 100).toFixed(1);
+    const humanLatency = hm.avgInterceptTimeError.toFixed(2);
+    const humanHits = hm.hits;
+
+    return {
+      humanPd,
+      humanLatency,
+      humanHits,
+      humanSamples: hm.totalSamples,
+      humanReward: hm.cumulativeReward.toFixed(1),
+      cpc: hm.cpc.toFixed(1),
+    };
+  }
+}
+
+
+// ==========================================
+// 7. MAIN APPLICATION CONTROLLER
+// ==========================================
+
+
 
 
 
@@ -2267,6 +3092,8 @@ let isEvalMode = false;
 let env = new RFEnvironment({ numBands: NUM_BANDS, seed: currentSeed });
 let strategies = createAllStrategies(NUM_BANDS);
 let metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
+let duelController = new OperatorDuelController(NUM_BANDS);
+
 let running = false;
 let simInterval = null;
 let stepCount = 0;
@@ -2283,12 +3110,16 @@ let pdChart, rewardChart, bandDensityChart, interceptRateChart, compareChart;
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initUI();
+  initAudio();
+  initDuelController();
+  renderChannelKeysDeck();
   initCharts();
   renderQTable();
   updateMetricCards();
   renderEmitterTable();
   updateStrategyCards();
   updateHeaderState();
+  startOscilloscopeLoop();
 });
 
 function initUI() {
@@ -2367,8 +3198,199 @@ function initUI() {
   // Channel Count Selector
   document.getElementById('bands-select').addEventListener('change', e => {
     NUM_BANDS = parseInt(e.target.value);
+    duelController.setNumBands(NUM_BANDS);
+    renderChannelKeysDeck();
     resetSim(NUM_BANDS);
   });
+
+  // Dismiss Debrief
+  const dismissBtn = document.getElementById('btn-close-debrief');
+  if (dismissBtn) {
+    dismissBtn.addEventListener('click', () => {
+      const panel = document.getElementById('debrief-panel');
+      if (panel) panel.style.display = 'none';
+    });
+  }
+}
+
+// ─── Audio Engine Integration ─────────────────────────────────────────────────
+function initAudio() {
+  const audioBtn = document.getElementById('btn-audio-toggle');
+  const audioLabel = document.getElementById('audio-status-label');
+  const volumeSlider = document.getElementById('audio-volume');
+
+  if (audioBtn) {
+    audioBtn.addEventListener('click', () => {
+      const isMuted = globalAudio.enabled;
+      globalAudio.setMuted(isMuted);
+      audioBtn.classList.toggle('active', !isMuted);
+      if (audioLabel) {
+        audioLabel.textContent = !isMuted ? 'Headphones: LIVE (Sonified)' : 'Headphones: Muted';
+      }
+    });
+  }
+
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', e => {
+      globalAudio.setVolume(parseFloat(e.target.value));
+    });
+  }
+}
+
+function startOscilloscopeLoop() {
+  const canvas = document.getElementById('audio-scope');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const data = globalAudio.getWaveformData();
+    ctx.fillStyle = '#080c14';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = globalAudio.enabled ? '#10b981' : '#475569';
+    ctx.beginPath();
+
+    const sliceWidth = canvas.width / data.length;
+    let x = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = data[i] / 128.0;
+      const y = (v * canvas.height) / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    ctx.stroke();
+  }
+  draw();
+}
+
+// ─── Human Operator Duel Controller ───────────────────────────────────────────
+function initDuelController() {
+  const btn30 = document.getElementById('btn-duel-30');
+  const btn60 = document.getElementById('btn-duel-60');
+  const timerBadge = document.getElementById('duel-timer-badge');
+  const timerVal = document.getElementById('duel-timer-val');
+
+  if (btn30) {
+    btn30.addEventListener('click', () => {
+      duelController.startSortie(30);
+      if (timerBadge) timerBadge.style.display = 'flex';
+      if (!running) startSim();
+    });
+  }
+
+  if (btn60) {
+    btn60.addEventListener('click', () => {
+      duelController.startSortie(60);
+      if (timerBadge) timerBadge.style.display = 'flex';
+      if (!running) startSim();
+    });
+  }
+
+  duelController.onStateChange = (state) => {
+    if (timerVal) timerVal.textContent = `${state.timeRemaining}s`;
+    if (!state.isActive && timerBadge) {
+      timerBadge.style.display = 'none';
+    }
+    updateHumanTunedDisplay(state.humanBand);
+  };
+
+  duelController.onDebriefReady = (debrief) => {
+    showDebriefModal(debrief);
+  };
+}
+
+function renderChannelKeysDeck() {
+  const deck = document.getElementById('channel-keys-deck');
+  if (!deck) return;
+
+  const hotkeys = ['1','2','3','4','5','6','7','8','Q','W','E','R','T','Y','U','I'];
+  let html = '';
+
+  for (let b = 0; b < NUM_BANDS; b++) {
+    const hk = hotkeys[b] || `${b}`;
+    html += `
+      <div class="channel-key" data-band="${b}" id="chkey-${b}">
+        <div class="key-id">CH${b.toString().padStart(2, '0')}</div>
+        <div class="key-hotkey">[${hk}]</div>
+        <div class="key-signal-dot" id="chdot-${b}"></div>
+      </div>
+    `;
+  }
+
+  deck.innerHTML = html;
+
+  deck.querySelectorAll('.channel-key').forEach(el => {
+    el.addEventListener('click', () => {
+      const b = parseInt(el.dataset.band, 10);
+      duelController.tuneTo(b);
+      // If audio is muted, auto-unmute on user interaction so they can hear immediately
+      if (!globalAudio.enabled) {
+        const audioBtn = document.getElementById('btn-audio-toggle');
+        if (audioBtn) audioBtn.click();
+      }
+    });
+  });
+
+  updateHumanTunedDisplay(duelController.humanBand);
+}
+
+function updateHumanTunedDisplay(tunedBand) {
+  const label = document.getElementById('current-human-band-label');
+  if (label) label.textContent = `CH${tunedBand.toString().padStart(2, '0')}`;
+
+  document.querySelectorAll('.channel-key').forEach((el, idx) => {
+    el.classList.toggle('active-human', idx === tunedBand);
+  });
+}
+
+function showDebriefModal(debrief) {
+  const panel = document.getElementById('debrief-panel');
+  const body = document.getElementById('debrief-body');
+  if (!panel || !body) return;
+
+  const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
+  const pIdx = strategies.findIndex(s => s.name.includes('Periodic'));
+  const qm = qIdx >= 0 ? metrics[qIdx].getSummary() : { pd: 0, avgInterceptTimeError: 0, hits: 0 };
+  const pm = pIdx >= 0 ? metrics[pIdx].getSummary() : { pd: 0, avgInterceptTimeError: 0, hits: 0 };
+
+  const humanPd = parseFloat(debrief.humanPd);
+  const aiPd = (qm.pd * 100).toFixed(1);
+  const pPd = (pm.pd * 100).toFixed(1);
+
+  const delta = (parseFloat(aiPd) - humanPd).toFixed(1);
+
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:1.25rem;margin-top:0.5rem">
+      <div>
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:0.4rem">Sortie Performance Comparison</div>
+        <table style="width:100%;font-size:0.78rem;font-family:var(--font-mono)">
+          <tr><td style="color:#fb7185">👤 Human Operator:</td><td><strong>${humanPd}% Pd</strong> (${debrief.humanHits} hits · ${debrief.humanLatency} lag)</td></tr>
+          <tr><td style="color:var(--accent-blue)">🧠 Q-Learning AI:</td><td><strong>${aiPd}% Pd</strong> (${qm.hits} hits · ${qm.avgInterceptTimeError.toFixed(2)} lag)</td></tr>
+          <tr><td style="color:var(--accent-cyan)">🎯 Periodic Tracker:</td><td><strong>${pPd}% Pd</strong> (${pm.hits} hits · ${pm.avgInterceptTimeError.toFixed(2)} lag)</td></tr>
+        </table>
+        <div style="margin-top:0.75rem;padding:0.5rem;background:rgba(59,130,246,0.1);border-radius:4px;border-left:3px solid var(--accent-blue);font-size:0.75rem">
+          <strong>Margin:</strong> AI intercepted <strong>${delta}% more pulses</strong> with sub-epoch response lag.
+        </div>
+      </div>
+      <div>
+        <div style="font-size:0.75rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;margin-bottom:0.4rem">Scientific Post-Mortem: Why the Machine Won</div>
+        <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5;margin-bottom:0.4rem">
+          <strong>1. Cognitive Reaction Floor:</strong> Human visual & audio reaction time has an irreducible latency of ~250–350ms, causing late dwell arrival on short radar bursts.
+        </p>
+        <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5;margin-bottom:0.4rem">
+          <strong>2. Mathematical Coincidence Prediction:</strong> The AI Periodic Estimator calculated exact pulse arrival phase ($t \\equiv \\hat{\\phi} \\pmod{\\hat{T}}$), tuning to channels <em>before</em> the pulse even fired.
+        </p>
+        <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5">
+          <strong>3. Frequency Agile Tracking:</strong> Q-Learning adapted state-transition probability matrices to track frequency hoppers that humans could not predict.
+        </p>
+      </div>
+    </div>
+  `;
+
+  panel.style.display = 'block';
 }
 
 function updateHeaderState() {
@@ -2408,7 +3430,24 @@ function stepOnce() {
   const { activity, noise } = env.step();
   stepCount++;
 
-  // Each strategy independently picks a band and receives reward
+  // 1. Human Operator step & audio synthesis
+  const humanStep = duelController.step(activity, stepCount, noise, env.emitters);
+
+  // Update channel key visual signals
+  activity.forEach((active, b) => {
+    const dot = document.getElementById(`chdot-${b}`);
+    const key = document.getElementById(`chkey-${b}`);
+    if (dot) dot.classList.toggle('live', active);
+    if (key) {
+      key.classList.toggle('rf-transmitting', active);
+      if (b === humanStep.band && humanStep.wasHit) {
+        key.classList.add('rf-hit');
+        setTimeout(() => key.classList.remove('rf-hit'), 300);
+      }
+    }
+  });
+
+  // 2. Each AI strategy independently picks a band and receives reward
   strategies.forEach((strat, i) => {
     const band = strat.selectBand(stepCount);
     const reward = metrics[i].record(band, activity, stepCount, noise);
@@ -2428,11 +3467,65 @@ function stepOnce() {
     drawWaterfall();
     updateMetricCards();
     updateLiveCharts();
+    updateDuelScoreboard();
   }
   if (activeTab === 'ml') renderQTable();
 
   const stepCounter = document.getElementById('step-counter');
   if (stepCounter) stepCounter.textContent = `T = ${stepCount}`;
+}
+
+function updateDuelScoreboard() {
+  const hm = duelController.humanMetrics.getSummary();
+  const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
+  const pIdx = strategies.findIndex(s => s.name.includes('Periodic'));
+  const qm = qIdx >= 0 ? metrics[qIdx].getSummary() : null;
+  const pm = pIdx >= 0 ? metrics[pIdx].getSummary() : null;
+  const sm = metrics[0].getSummary();
+
+  // Human
+  const hPd = document.getElementById('duel-human-pd');
+  const hHits = document.getElementById('duel-human-hits');
+  const hLat = document.getElementById('duel-human-lat');
+  const hRew = document.getElementById('duel-human-rew');
+  if (hPd) hPd.textContent = (hm.pd * 100).toFixed(1) + '%';
+  if (hHits) hHits.textContent = hm.hits;
+  if (hLat) hLat.textContent = hm.avgInterceptTimeError.toFixed(2);
+  if (hRew) hRew.textContent = hm.cumulativeReward.toFixed(1);
+
+  // Q-Learning
+  if (qm) {
+    const qPd = document.getElementById('duel-ai-pd');
+    const qHits = document.getElementById('duel-ai-hits');
+    const qLat = document.getElementById('duel-ai-lat');
+    const qRew = document.getElementById('duel-ai-rew');
+    if (qPd) qPd.textContent = (qm.pd * 100).toFixed(1) + '%';
+    if (qHits) qHits.textContent = qm.hits;
+    if (qLat) qLat.textContent = qm.avgInterceptTimeError.toFixed(2);
+    if (qRew) qRew.textContent = qm.cumulativeReward.toFixed(1);
+  }
+
+  // Periodic
+  if (pm) {
+    const pPd = document.getElementById('duel-periodic-pd');
+    const pHits = document.getElementById('duel-periodic-hits');
+    const pLat = document.getElementById('duel-periodic-lat');
+    const pRew = document.getElementById('duel-periodic-rew');
+    if (pPd) pPd.textContent = (pm.pd * 100).toFixed(1) + '%';
+    if (pHits) pHits.textContent = pm.hits;
+    if (pLat) pLat.textContent = pm.avgInterceptTimeError.toFixed(2);
+    if (pRew) pRew.textContent = pm.cumulativeReward.toFixed(1);
+  }
+
+  // Sequential
+  const sPd = document.getElementById('duel-seq-pd');
+  const sHits = document.getElementById('duel-seq-hits');
+  const sLat = document.getElementById('duel-seq-lat');
+  const sRew = document.getElementById('duel-seq-rew');
+  if (sPd) sPd.textContent = (sm.pd * 100).toFixed(1) + '%';
+  if (sHits) sHits.textContent = sm.hits;
+  if (sLat) sLat.textContent = sm.avgInterceptTimeError.toFixed(2);
+  if (sRew) sRew.textContent = sm.cumulativeReward.toFixed(1);
 }
 
 function startSim() {
@@ -2457,6 +3550,8 @@ function resetSim(numBands) {
   const nb = numBands ?? NUM_BANDS;
   env = new RFEnvironment({ numBands: nb, seed: currentSeed });
   strategies = createAllStrategies(nb);
+  duelController.setNumBands(nb);
+
   const qStrat = strategies.find(s => s.name.includes('Q-Learning'));
   if (qStrat) qStrat.getAgent().setEvaluationMode(isEvalMode);
 
@@ -2469,11 +3564,13 @@ function resetSim(numBands) {
   updateHeaderState();
   drawWaterfall();
   updateMetricCards();
+  updateDuelScoreboard();
   updateStrategyCards();
   renderEmitterTable();
   renderQTable();
   initCharts();
 }
+
 
 // ─── Waterfall Canvas ─────────────────────────────────────────────────────────
 function drawWaterfall() {

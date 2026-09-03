@@ -1,10 +1,27 @@
-# 📡 EW Smart Scan — Tactical Electronic Support ML Scheduler
+# 📡 EW Smart Scan — Tactical Electronic Support ML Scheduler & SIGINT Audio Duel
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform: Web](https://img.shields.io/badge/Platform-HTML5%20%7C%20ES6%20%7C%20Vanilla%20CSS-green.svg)](#)
+[![Platform: Web](https://img.shields.io/badge/Platform-HTML5%20%7C%20Web%20Audio%20API%20%7C%20ES6-green.svg)](#)
+[![Experience: Interactive](https://img.shields.io/badge/Experience-Human%20vs%20AI%20Duel%20%7C%20RF%20Sonification-rose.svg)](#)
 [![Algorithms](https://img.shields.io/badge/Algorithms-Periodic%20Coincidence%20%7C%20Q--Learning%20%7C%20UCB--1-purple.svg)](#)
 
-An interactive, defense-grade simulation and telemetry platform demonstrating **Machine Learning & Reinforcement Learning algorithms for Electronic Support (ES) Receiver Spectrum Surveillance**.
+An interactive, defense-grade simulation and wargame duel platform demonstrating **Machine Learning & Reinforcement Learning algorithms for Electronic Support (ES) Receiver Spectrum Surveillance**.
+
+---
+
+## 🎧 Interactive Operator Station & SIGINT Audio Sonification
+
+Put yourself directly in the **Electronic Warfare / Signals Intelligence (SIGINT) Operator's seat**:
+- **Real-Time RF Sonification (Web Audio API):** Synthesizes authentic radar acoustic signatures in real-time without external audio files:
+  - **Periodic Radars:** High-precision PRF pulse train buzzes and harmonic clicks.
+  - **Spatial Scanning 360° Radars:** Dynamic amplitude envelope swells imitating rotating mainlobe beam alignment.
+  - **Frequency-Agile Hoppers:** Rapid modulating polyphonic frequency chirps.
+  - **Burst / Intermittent Threats:** Staccato pulse train bursts.
+  - **Quiet Channels:** Gentle thermal white-noise RF floor.
+  - **Signal Lock Feedback:** Crisp heterodyne tone on successful pulse intercept.
+- **Interactive Tuning Deck:** Manually tune across sub-bands by clicking tactical channel pads or using keyboard hotkeys (`[1-8]`, `[Q-I]`, `[←/→]`).
+- **Head-to-Head Wargame Duel:** Compete in timed **30-second** or **60-second operational sorties** against autonomous AI schedulers (Q-Learning and Periodic Coincidence Tracker).
+- **Post-Sortie Intelligence Debrief ("Why the Machine Won"):** Explains the scientific difference between human cognitive reaction floors (~250-350ms) and AI mathematical coincidence prediction ($t \equiv \hat{\phi} \pmod{\hat{T}}$).
 
 ---
 
