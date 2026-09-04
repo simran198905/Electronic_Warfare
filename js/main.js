@@ -308,7 +308,7 @@ function showDebriefModal(debrief) {
           <strong>1. Cognitive Reaction Floor:</strong> Human visual & audio reaction time has an irreducible latency of ~250–350ms, causing late dwell arrival on short radar bursts.
         </p>
         <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5;margin-bottom:0.4rem">
-          <strong>2. Mathematical Coincidence Prediction:</strong> The AI Periodic Estimator calculated exact pulse arrival phase ($t \\equiv \\hat{\\phi} \\pmod{\\hat{T}}$), tuning to channels <em>before</em> the pulse even fired.
+          <strong>2. Mathematical Coincidence Prediction:</strong> The AI Periodic Estimator calculated exact pulse arrival phase (<code>t ≡ φ̂<sub>p</sub> (mod T̂<sub>p</sub>)</code>), tuning to channels <em>before</em> the pulse even fired.
         </p>
         <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5">
           <strong>3. Frequency Agile Tracking:</strong> Q-Learning adapted state-transition probability matrices to track frequency hoppers that humans could not predict.

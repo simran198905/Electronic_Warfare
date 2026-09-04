@@ -797,6 +797,98 @@ tbody tr:hover {
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   padding: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.briefing-card h3 {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.briefing-card p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.briefing-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.briefing-card li {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.briefing-card li::before {
+  content: '•';
+  position: absolute;
+  left: 0.2rem;
+  color: var(--accent-blue);
+  font-size: 1rem;
+}
+
+.math-formula {
+  background: rgba(14, 21, 36, 0.85);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin: 0.6rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.math-formula .formula-expr {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.math-formula .formula-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.math-var {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.86em;
+  white-space: nowrap;
 }
 
 /* ─── Interactive Operator Station & Duel Arena ────────────────────────────── */

@@ -805,6 +805,98 @@ tbody tr:hover {
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   padding: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.briefing-card h3 {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.briefing-card p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.briefing-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.briefing-card li {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding-left: 1rem;
+  position: relative;
+}
+
+.briefing-card li::before {
+  content: '•';
+  position: absolute;
+  left: 0.2rem;
+  color: var(--accent-blue);
+  font-size: 1rem;
+}
+
+.math-formula {
+  background: rgba(14, 21, 36, 0.85);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-left: 3px solid var(--accent-cyan);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  margin: 0.6rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.math-formula .formula-expr {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.math-formula .formula-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.math-var {
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.86em;
+  white-space: nowrap;
 }
 
 /* ─── Interactive Operator Station & Duel Arena ────────────────────────────── */
@@ -1786,33 +1878,107 @@ tbody tr:hover {
   </div>
 
   <div class="theory-grid">
+    <!-- Card 1: Operational Challenge -->
     <div class="briefing-card">
-      <h3>The Operational Challenge</h3>
-      <p>In electronic warfare (EW) surveillance, an Electronic Support (ES) receiver must maintain situational awareness over a wide radio frequency (RF) spectrum. Because receiver hardware typically has an instantaneous bandwidth significantly smaller than the total surveillance bandwidth, the receiver must dynamically schedule dwell times across discrete sub-bands.</p>
-      <p>Traditional open-loop strategies rely on rigid periodic sweeping, which fails against modern frequency-agile radars, pulse-compression radars, and intermittent LPI emitters.</p>
+      <h3>
+        <span style="font-size:1.15rem">🛰️</span>
+        The Operational Challenge
+      </h3>
+      <p>In electronic warfare (EW) surveillance, an Electronic Support (ES) receiver must maintain continuous situational awareness across a wide radio frequency (RF) spectrum (e.g. 2–18 GHz). Because receiver hardware has an <strong>Instantaneous Bandwidth (IBW)</strong> significantly smaller than the surveillance bandwidth, the receiver must dynamically schedule discrete dwell intervals across sub-bands.</p>
+      <p>Traditional open-loop strategies rely on rigid periodic sweeping, which suffers severe pulse dropouts against modern frequency-agile radars, pulse-compression radars, and intermittent Low Probability of Intercept (LPI) emitters.</p>
     </div>
 
+    <!-- Card 2: Optimal Periodic Coincidence -->
     <div class="briefing-card">
-      <h3>Optimal Periodic Scan Interception</h3>
-      <p>For periodic emitters with pulse repetition interval $T_p$ and phase offset $\phi_p$, the optimal scan strategy is <strong>pulse coincidence scheduling</strong>:</p>
-      <div class="math-formula">\hat{t}_{k} = \hat{\phi}_p + k \cdot \hat{T}_p \quad \Longrightarrow \quad \text{Tune Receiver to } b \text{ when } t \equiv \hat{\phi}_p \pmod{\hat{T}_p}</div>
-      <p>The periodic coincidence agent estimates $\hat{T}_p$ and $\hat{\phi}_p$ via inter-pulse arrival histograms, achieving minimum intercept latency error while freeing intermediate slots for agile spectrum search.</p>
+      <h3>
+        <span style="font-size:1.15rem">🎯</span>
+        Optimal Periodic Scan Interception
+      </h3>
+      <p>For periodic emitters with pulse repetition interval <span class="math-var">T<sub>p</sub></span> and phase offset <span class="math-var">φ<sub>p</sub></span>, the optimal scan policy is <strong>deterministic pulse coincidence scheduling</strong>:</p>
+      
+      <div class="math-formula">
+        <div class="formula-expr">
+          t̂<sub>k</sub> = φ̂<sub>p</sub> + k · T̂<sub>p</sub> &nbsp;⟹&nbsp; Tune channel <em>b</em> when &nbsp;t ≡ φ̂<sub>p</sub> (mod T̂<sub>p</sub>)
+        </div>
+        <span class="formula-tag">Coincidence Criterion</span>
+      </div>
+
+      <p>The periodic coincidence agent estimates <span class="math-var">T̂<sub>p</sub></span> and <span class="math-var">φ̂<sub>p</sub></span> via inter-pulse arrival histograms. This achieves <strong>near-100% detection probability</strong> with minimum intercept latency error while freeing intermediate dwell intervals for agile spectrum surveillance.</p>
     </div>
 
+    <!-- Card 3: Reinforcement Learning (Q-Learning) -->
     <div class="briefing-card">
-      <h3>Reinforcement Learning Formulation</h3>
-      <p>The scheduler models band selection as an agent interacting with the RF environment:</p>
+      <h3>
+        <span style="font-size:1.15rem">🧠</span>
+        Reinforcement Learning Formulation (Q-Learning)
+      </h3>
+      <p>The scheduler models dwell allocation as a Markov Decision Process (MDP) over contested RF channels:</p>
       <ul>
-        <li><strong>State Space (S):</strong> Currently tuned frequency sub-band $s \in \{0, 1, \dots, N-1\}$.</li>
-        <li><strong>Action Space (A):</strong> Next sub-band to tune during dwell interval $a \in \{0, 1, \dots, N-1\}$.</li>
-        <li><strong>Reward Function (R):</strong> Immediate feedback received based on signal presence upon tuning.</li>
+        <li><strong>State Space (S):</strong> Currently tuned sub-band <span class="math-var">s ∈ {0, 1, …, N−1}</span>.</li>
+        <li><strong>Action Space (A):</strong> Next sub-band to tune during dwell interval <span class="math-var">a ∈ {0, 1, …, N−1}</span>.</li>
+        <li><strong>Reward Function (R):</strong> Immediate feedback received upon dwell (<span class="math-var">R = +10</span> on active intercept, <span class="math-var">−2</span> on false alarm, <span class="math-var">−0.1</span> dwell cost).</li>
       </ul>
+
+      <div class="math-formula">
+        <div class="formula-expr">
+          Q(s, a) ← Q(s, a) + α · [ R + γ · max<sub>a'</sub> Q(s', a') − Q(s, a) ]
+        </div>
+        <span class="formula-tag">Bellman Optimality</span>
+      </div>
     </div>
 
+    <!-- Card 4: Spatial Scan Radars -->
     <div class="briefing-card">
-      <h3>Spatially Scanning Radar Dynamics</h3>
-      <p>Spatially scanning search radars sweep a narrow directional beam across $360^\circ$ with rotational period $T_{\text{rot}}$. The receiver intercepts the mainlobe only when the beam azimuth $\theta(t) = (\omega t + \theta_0) \pmod{360^\circ}$ aligns with the receiver angle.</p>
-      <div class="math-formula">|\theta(t) - \theta_{\text{rx}}| \le \frac{\theta_{\text{beam}}}{2}</div>
+      <h3>
+        <span style="font-size:1.15rem">📡</span>
+        Spatially Scanning Radar Dynamics
+      </h3>
+      <p>Spatially scanning search radars sweep a narrow directional beam across <strong>360°</strong> with rotational period <span class="math-var">T<sub>rot</sub></span>. The receiver intercepts the mainlobe only when beam azimuth <span class="math-var">θ(t) = (ωt + θ<sub>0</sub>) mod 360°</span> aligns with receiver angle <span class="math-var">θ<sub>rx</sub></span>:</p>
+      
+      <div class="math-formula">
+        <div class="formula-expr">
+          |θ(t) − θ<sub>rx</sub>| ≤ θ<sub>beam</sub> / 2
+        </div>
+        <span class="formula-tag">Mainlobe Illumination</span>
+      </div>
+
+      <p>This creates intermittent periodic bursts with wide quiet intervals between antenna rotations, testing the scheduler's ability to maintain high Probability of Intercept (<span class="math-var">P<sub>d</sub></span>).</p>
+    </div>
+
+    <!-- Card 5: UCB-1 Multi-Armed Bandit -->
+    <div class="briefing-card">
+      <h3>
+        <span style="font-size:1.15rem">⚖️</span>
+        Multi-Armed Bandit Scheduler (UCB-1)
+      </h3>
+      <p>Balances exploitation of high-density emitter channels against exploration of unknown frequencies using Upper Confidence Bounds:</p>
+      
+      <div class="math-formula">
+        <div class="formula-expr">
+          a<sub>t</sub> = argmax<sub>i</sub> [ μ̂<sub>i</sub> + c · √( 2 · ln(t) / N<sub>i</sub>(t) ) ]
+        </div>
+        <span class="formula-tag">Auer et al. UCB-1</span>
+      </div>
+
+      <p>Guarantees logarithmic cumulative regret <span class="math-var">O(K ln T)</span> without requiring full state-transition matrix estimation.</p>
+    </div>
+
+    <!-- Card 6: 7 Figures of Merit -->
+    <div class="briefing-card">
+      <h3>
+        <span style="font-size:1.15rem">📊</span>
+        The 7 EW Figures of Merit
+      </h3>
+      <p>Evaluates receiver scheduling efficiency across 7 standard operational dimensions:</p>
+      <ul>
+        <li><strong>P<sub>d</sub> (Probability of Detection):</strong> Hits / Total Emission Opportunities</li>
+        <li><strong>P<sub>fa</sub> (Probability of False Alarm):</strong> False Triggers / Quiet Channel Dwells</li>
+        <li><strong>AIR (Average Intercept Rate):</strong> Hits / Total Surveillance Steps</li>
+        <li><strong>AITE (Average Intercept Time Error):</strong> Mean step latency from pulse onset to detection</li>
+        <li><strong>Sensitivity:</strong> True Positive Rate (Recall / TPR)</li>
+        <li><strong>CPC:</strong> Percentage of Correct Tuning Decisions (Accuracy)</li>
+        <li><strong>R(t):</strong> Cumulative Objective Utility Score</li>
+      </ul>
     </div>
   </div>
 </div>
@@ -3397,7 +3563,7 @@ function showDebriefModal(debrief) {
           <strong>1. Cognitive Reaction Floor:</strong> Human visual & audio reaction time has an irreducible latency of ~250–350ms, causing late dwell arrival on short radar bursts.
         </p>
         <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5;margin-bottom:0.4rem">
-          <strong>2. Mathematical Coincidence Prediction:</strong> The AI Periodic Estimator calculated exact pulse arrival phase ($t \\equiv \\hat{\\phi} \\pmod{\\hat{T}}$), tuning to channels <em>before</em> the pulse even fired.
+          <strong>2. Mathematical Coincidence Prediction:</strong> The AI Periodic Estimator calculated exact pulse arrival phase (<code>t ≡ φ̂<sub>p</sub> (mod T̂<sub>p</sub>)</code>), tuning to channels <em>before</em> the pulse even fired.
         </p>
         <p style="font-size:0.76rem;color:var(--text-muted);line-height:1.5">
           <strong>3. Frequency Agile Tracking:</strong> Q-Learning adapted state-transition probability matrices to track frequency hoppers that humans could not predict.
