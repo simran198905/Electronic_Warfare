@@ -29,7 +29,7 @@ let receiverPositions = strategies.map(() => []);
 let pdChart, rewardChart, bandDensityChart, interceptRateChart, compareChart;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+function boot() {
   initUI();
   initAudio();
   initDuelController();
@@ -41,7 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStrategyCards();
   updateHeaderState();
   startOscilloscopeLoop();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
+}
 
 function initUI() {
   // Tab navigation
@@ -585,6 +591,10 @@ function updateMetricCards() {
 
 // ─── Charts ───────────────────────────────────────────────────────────────────
 function initCharts() {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded. Live charts disabled.');
+    return;
+  }
   [pdChart, rewardChart, bandDensityChart, interceptRateChart].forEach(c => c?.destroy());
 
   const chartDefaults = {
@@ -735,11 +745,14 @@ function initCharts() {
 const CHART_SUBSAMPLE = 5;
 
 function updateLiveCharts() {
+  if (typeof Chart === 'undefined' || !pdChart) return;
   if (stepCount % CHART_SUBSAMPLE !== 0) return;
   const label = stepCount.toString();
 
   pdChart.data.labels.push(label);
-  strategies.forEach((s, i) => pdChart.data.datasets[i].data.push((metrics[i].pd * 100).toFixed(2)));
+  strategies.forEach((s, i) => {
+    if (pdChart.data.datasets[i]) pdChart.data.datasets[i].data.push((metrics[i].pd * 100).toFixed(2));
+  });
   if (pdChart.data.labels.length > 150) {
     pdChart.data.labels.shift();
     pdChart.data.datasets.forEach(d => d.data.shift());
@@ -747,7 +760,9 @@ function updateLiveCharts() {
   pdChart.update('none');
 
   rewardChart.data.labels.push(label);
-  strategies.forEach((s, i) => rewardChart.data.datasets[i].data.push(metrics[i].cumulativeReward.toFixed(2)));
+  strategies.forEach((s, i) => {
+    if (rewardChart.data.datasets[i]) rewardChart.data.datasets[i].data.push(metrics[i].cumulativeReward.toFixed(2));
+  });
   if (rewardChart.data.labels.length > 150) {
     rewardChart.data.labels.shift();
     rewardChart.data.datasets.forEach(d => d.data.shift());
@@ -755,7 +770,9 @@ function updateLiveCharts() {
   rewardChart.update('none');
 
   interceptRateChart.data.labels.push(label);
-  strategies.forEach((s, i) => interceptRateChart.data.datasets[i].data.push((metrics[i].avgInterceptRate * 100).toFixed(2)));
+  strategies.forEach((s, i) => {
+    if (interceptRateChart.data.datasets[i]) interceptRateChart.data.datasets[i].data.push((metrics[i].avgInterceptRate * 100).toFixed(2));
+  });
   if (interceptRateChart.data.labels.length > 150) {
     interceptRateChart.data.labels.shift();
     interceptRateChart.data.datasets.forEach(d => d.data.shift());
@@ -772,6 +789,7 @@ function updateLiveCharts() {
 }
 
 function updateCompareChart() {
+  if (typeof Chart === 'undefined') return;
   if (compareChart) compareChart.destroy();
   const ctx = document.getElementById('chart-compare');
   if (!ctx) return;

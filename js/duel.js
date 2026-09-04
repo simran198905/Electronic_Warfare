@@ -83,7 +83,11 @@ export class OperatorDuelController {
     const wasHit = activity[this.humanBand];
 
     // Play sonified audio on current tuned human channel
-    const activeEmitter = emitters.find(e => e.band === this.humanBand && e.active);
+    // emitters are raw Emitter objects: use .currentBand and .state
+    const activeEmitter = emitters.find(e =>
+      (e.currentBand !== undefined ? e.currentBand : e.band) === this.humanBand &&
+      (e.state !== undefined ? e.state : e.active)
+    );
     globalAudio.playDwellAcoustics(this.humanBand, wasHit, activeEmitter);
 
     if (wasHit) {

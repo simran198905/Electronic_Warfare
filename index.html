@@ -6,7 +6,12 @@
   <title>EW Smart Scan — Tactical ES Receiver Scheduler</title>
   <meta name="description" content="Electronic Support Receiver Scheduler: Reinforcement Learning (Q-Learning / UCB) vs. Classical Heuristics for Radar Spectrum Surveillance." />
   <link rel="stylesheet" href="css/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="js/vendor/chart.umd.min.js"></script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
 
@@ -642,6 +647,6 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js"></script>
+<script src="js/bundle.js"></script>
 </body>
 </html>
