@@ -18,7 +18,7 @@ let duelController = new OperatorDuelController(NUM_BANDS);
 let running = false;
 let simInterval = null;
 let stepCount = 0;
-let simSpeed = 100; // ms per step
+let simSpeed = 100; // ms per step (default: 10 Hz = 100ms)
 let activeTab = 'dashboard';
 
 // Waterfall buffer: [time][band] = { activity: bool, receiver: strategyIndex[] }
@@ -41,6 +41,19 @@ function boot() {
   updateStrategyCards();
   updateHeaderState();
   startOscilloscopeLoop();
+
+  // Initialize slider track gradients on page load
+  const speedSlider = document.getElementById('speed-slider');
+  if (speedSlider) {
+    const initHz = parseInt(speedSlider.value, 10);
+    const pct = ((initHz - 1) / (50 - 1)) * 100;
+    speedSlider.style.background = `linear-gradient(to right, var(--accent-blue) ${pct}%, rgba(59,130,246,0.25) ${pct}%)`;
+  }
+  const volSlider = document.getElementById('audio-volume');
+  if (volSlider) {
+    const initVol = parseFloat(volSlider.value) * 100;
+    volSlider.style.background = `linear-gradient(to right, var(--accent-green) ${initVol}%, rgba(16,185,129,0.2) ${initVol}%)`;
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -112,10 +125,14 @@ function initUI() {
     importWeightsBtn.addEventListener('click', importModelWeights);
   }
 
-  // Speed Slider
+  // Speed Slider (1–50 Hz, direct mapping)
   document.getElementById('speed-slider').addEventListener('input', e => {
-    simSpeed = 1005 - parseInt(e.target.value);
-    document.getElementById('speed-label').textContent = `${Math.round(1000 / simSpeed)} Hz`;
+    const hz = parseInt(e.target.value, 10);
+    simSpeed = Math.round(1000 / hz);  // ms per tick
+    document.getElementById('speed-label').textContent = `${hz} Hz`;
+    // Update track fill gradient
+    const pct = ((hz - 1) / (50 - 1)) * 100;
+    e.target.style.background = `linear-gradient(to right, var(--accent-blue) ${pct}%, rgba(59,130,246,0.25) ${pct}%)`;
     if (running) {
       clearInterval(simInterval);
       simInterval = setInterval(stepOnce, simSpeed);
@@ -159,8 +176,16 @@ function initAudio() {
 
   if (volumeSlider) {
     volumeSlider.addEventListener('input', e => {
-      globalAudio.setVolume(parseFloat(e.target.value));
+      const vol = parseFloat(e.target.value);
+      globalAudio.setVolume(vol);
+      const label = document.getElementById('audio-volume-label');
+      if (label) label.textContent = `${Math.round(vol * 100)}%`;
+      // Update track fill gradient
+      volumeSlider.style.background = `linear-gradient(to right, var(--accent-green) ${vol * 100}%, rgba(16,185,129,0.2) ${vol * 100}%)`;
     });
+    // Set initial gradient
+    const initVol = parseFloat(volumeSlider.value);
+    volumeSlider.style.background = `linear-gradient(to right, var(--accent-green) ${initVol * 100}%, rgba(16,185,129,0.2) ${initVol * 100}%)`;
   }
 }
 

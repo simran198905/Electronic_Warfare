@@ -122,8 +122,8 @@
       <div class="control-divider"></div>
       <div class="speed-control">
         <span class="input-label">Clock Rate:</span>
-        <input type="range" id="speed-slider" min="5" max="990" value="905" />
-        <span id="speed-label" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono)">10 Hz</span>
+        <input type="range" id="speed-slider" min="1" max="50" step="1" value="10" />
+        <span id="speed-label" style="font-size:0.75rem;color:var(--text-main);font-family:var(--font-mono);font-weight:700;min-width:40px">10 Hz</span>
       </div>
 
       <div class="control-divider"></div>
@@ -169,7 +169,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
           <span id="audio-status-label">Headphones: Muted</span>
         </button>
-        <input type="range" id="audio-volume" min="0" max="1" step="0.05" value="0.4" style="width:70px;accent-color:var(--accent-green)" title="RF Audio Volume" />
+        <div class="volume-slider-wrap" style="display:flex;align-items:center;gap:0.45rem" title="RF Audio Sonification Volume">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent-green)" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+          <input type="range" id="audio-volume" min="0" max="1" step="0.05" value="0.4" title="RF Audio Volume" />
+          <span id="audio-volume-label" style="font-size:0.75rem;font-family:var(--font-mono);color:var(--accent-green);font-weight:700;min-width:32px">40%</span>
+        </div>
         <canvas id="audio-scope" class="audio-oscilloscope" width="90" height="24" title="Live RF Audio Waveform"></canvas>
       </div>
 

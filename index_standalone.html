@@ -431,24 +431,55 @@ body {
 input[type=range] {
   -webkit-appearance: none;
   width: 90px;
-  height: 4px;
-  background: var(--bg-elevated);
-  border-radius: 2px;
+  height: 5px;
+  background: rgba(59,130,246,0.25);
+  border-radius: 3px;
   outline: none;
+  accent-color: var(--accent-blue);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent-blue) 0%, rgba(59,130,246,0.25) 0%);
 }
 
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  background: var(--text-main);
+  background: var(--accent-blue);
+  border: 2px solid rgba(255,255,255,0.9);
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 0 6px rgba(59,130,246,0.6);
+  margin-top: -5px;
 }
 
 input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.25);
+  box-shadow: 0 0 12px rgba(59,130,246,0.8);
+}
+
+/* Volume slider — green accent */
+#audio-volume {
+  width: 80px;
+  accent-color: var(--accent-green);
+}
+
+#audio-volume::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--accent-green) 0%, rgba(16,185,129,0.2) 0%);
+}
+
+#audio-volume::-webkit-slider-thumb {
+  background: var(--accent-green);
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 6px rgba(16,185,129,0.6);
+}
+
+#audio-volume::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 12px rgba(16,185,129,0.8);
 }
 
 /* ─── Metric Telemetry Cards ──────────────────────────────────────────────── */
@@ -1384,8 +1415,8 @@ tbody tr:hover {
       <div class="control-divider"></div>
       <div class="speed-control">
         <span class="input-label">Clock Rate:</span>
-        <input type="range" id="speed-slider" min="5" max="990" value="905" />
-        <span id="speed-label" style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono)">10 Hz</span>
+        <input type="range" id="speed-slider" min="1" max="50" step="1" value="10" />
+        <span id="speed-label" style="font-size:0.75rem;color:var(--text-main);font-family:var(--font-mono);font-weight:700;min-width:40px">10 Hz</span>
       </div>
 
       <div class="control-divider"></div>
@@ -1431,7 +1462,11 @@ tbody tr:hover {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
           <span id="audio-status-label">Headphones: Muted</span>
         </button>
-        <input type="range" id="audio-volume" min="0" max="1" step="0.05" value="0.4" style="width:70px;accent-color:var(--accent-green)" title="RF Audio Volume" />
+        <div class="volume-slider-wrap" style="display:flex;align-items:center;gap:0.45rem" title="RF Audio Sonification Volume">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--accent-green)" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+          <input type="range" id="audio-volume" min="0" max="1" step="0.05" value="0.4" title="RF Audio Volume" />
+          <span id="audio-volume-label" style="font-size:0.75rem;font-family:var(--font-mono);color:var(--accent-green);font-weight:700;min-width:32px">40%</span>
+        </div>
         <canvas id="audio-scope" class="audio-oscilloscope" width="90" height="24" title="Live RF Audio Waveform"></canvas>
       </div>
 
@@ -3933,7 +3968,7 @@ let duelController = new OperatorDuelController(NUM_BANDS);
 let running = false;
 let simInterval = null;
 let stepCount = 0;
-let simSpeed = 100; // ms per step
+let simSpeed = 100; // ms per step (default: 10 Hz = 100ms)
 let activeTab = 'dashboard';
 
 // Waterfall buffer: [time][band] = { activity: bool, receiver: strategyIndex[] }
@@ -3956,6 +3991,19 @@ function boot() {
   updateStrategyCards();
   updateHeaderState();
   startOscilloscopeLoop();
+
+  // Initialize slider track gradients on page load
+  const speedSlider = document.getElementById('speed-slider');
+  if (speedSlider) {
+    const initHz = parseInt(speedSlider.value, 10);
+    const pct = ((initHz - 1) / (50 - 1)) * 100;
+    speedSlider.style.background = `linear-gradient(to right, var(--accent-blue) ${pct}%, rgba(59,130,246,0.25) ${pct}%)`;
+  }
+  const volSlider = document.getElementById('audio-volume');
+  if (volSlider) {
+    const initVol = parseFloat(volSlider.value) * 100;
+    volSlider.style.background = `linear-gradient(to right, var(--accent-green) ${initVol}%, rgba(16,185,129,0.2) ${initVol}%)`;
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -4027,10 +4075,14 @@ function initUI() {
     importWeightsBtn.addEventListener('click', importModelWeights);
   }
 
-  // Speed Slider
+  // Speed Slider (1–50 Hz, direct mapping)
   document.getElementById('speed-slider').addEventListener('input', e => {
-    simSpeed = 1005 - parseInt(e.target.value);
-    document.getElementById('speed-label').textContent = `${Math.round(1000 / simSpeed)} Hz`;
+    const hz = parseInt(e.target.value, 10);
+    simSpeed = Math.round(1000 / hz);  // ms per tick
+    document.getElementById('speed-label').textContent = `${hz} Hz`;
+    // Update track fill gradient
+    const pct = ((hz - 1) / (50 - 1)) * 100;
+    e.target.style.background = `linear-gradient(to right, var(--accent-blue) ${pct}%, rgba(59,130,246,0.25) ${pct}%)`;
     if (running) {
       clearInterval(simInterval);
       simInterval = setInterval(stepOnce, simSpeed);
@@ -4074,8 +4126,16 @@ function initAudio() {
 
   if (volumeSlider) {
     volumeSlider.addEventListener('input', e => {
-      globalAudio.setVolume(parseFloat(e.target.value));
+      const vol = parseFloat(e.target.value);
+      globalAudio.setVolume(vol);
+      const label = document.getElementById('audio-volume-label');
+      if (label) label.textContent = `${Math.round(vol * 100)}%`;
+      // Update track fill gradient
+      volumeSlider.style.background = `linear-gradient(to right, var(--accent-green) ${vol * 100}%, rgba(16,185,129,0.2) ${vol * 100}%)`;
     });
+    // Set initial gradient
+    const initVol = parseFloat(volumeSlider.value);
+    volumeSlider.style.background = `linear-gradient(to right, var(--accent-green) ${initVol * 100}%, rgba(16,185,129,0.2) ${initVol * 100}%)`;
   }
 }
 

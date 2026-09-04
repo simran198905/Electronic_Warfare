@@ -423,24 +423,55 @@ body {
 input[type=range] {
   -webkit-appearance: none;
   width: 90px;
-  height: 4px;
-  background: var(--bg-elevated);
-  border-radius: 2px;
+  height: 5px;
+  background: rgba(59,130,246,0.25);
+  border-radius: 3px;
   outline: none;
+  accent-color: var(--accent-blue);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent-blue) 0%, rgba(59,130,246,0.25) 0%);
 }
 
 input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  background: var(--text-main);
+  background: var(--accent-blue);
+  border: 2px solid rgba(255,255,255,0.9);
   cursor: pointer;
-  transition: transform 0.1s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 0 6px rgba(59,130,246,0.6);
+  margin-top: -5px;
 }
 
 input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.25);
+  box-shadow: 0 0 12px rgba(59,130,246,0.8);
+}
+
+/* Volume slider — green accent */
+#audio-volume {
+  width: 80px;
+  accent-color: var(--accent-green);
+}
+
+#audio-volume::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, var(--accent-green) 0%, rgba(16,185,129,0.2) 0%);
+}
+
+#audio-volume::-webkit-slider-thumb {
+  background: var(--accent-green);
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 6px rgba(16,185,129,0.6);
+}
+
+#audio-volume::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 12px rgba(16,185,129,0.8);
 }
 
 /* ─── Metric Telemetry Cards ──────────────────────────────────────────────── */
