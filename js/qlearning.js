@@ -87,19 +87,34 @@ export class OptimalPeriodicEstimator {
   }
 
   /**
-   * Estimates fundamental period T and phase phi via modular congruence histogram.
-   * Avoids intra-burst harmonic distortion.
+   * Estimates fundamental period T and phase phi via modular congruence and
+   * delta-gap cross-checking to eliminate subharmonic aliasing.
    */
   _estimatePeriodPhase(band) {
     const edges = this.risingEdges[band];
     if (edges.length < this.minSamplesForFit) return;
 
+    // Calculate inter-arrival intervals between consecutive rising edges
+    const deltas = [];
+    for (let i = 1; i < edges.length; i++) {
+      const dt = edges[i] - edges[i - 1];
+      if (dt > 1) { // ignore intra-burst dwell clicks
+        deltas.push(dt);
+      }
+    }
+    if (deltas.length === 0) return;
+
+    // Radar PRI de-interleaving: the true fundamental period cannot be smaller
+    // than the minimum observed arrival gap between distinct bursts.
+    // This strictly prevents locking onto subharmonics (e.g. T=4 when true T=8).
+    const minObservedGap = Math.min(...deltas);
+    const minSearchT = Math.max(4, Math.floor(minObservedGap * 0.75));
+
     let bestT = null;
     let bestPhi = null;
     let bestScore = 0;
 
-    // Evaluate candidate fundamental periods from 4 to maxTrackedPeriod
-    for (let T = 4; T <= this.maxTrackedPeriod; T++) {
+    for (let T = minSearchT; T <= this.maxTrackedPeriod; T++) {
       const remCounts = {};
       for (const t of edges) {
         const r = ((t % T) + T) % T;
@@ -115,12 +130,15 @@ export class OptimalPeriodicEstimator {
         }
       }
 
-      const score = maxCount / edges.length;
-      if (score >= 0.70) {
-        if (bestT === null || score > bestScore + 0.1) {
+      const congruenceScore = maxCount / edges.length;
+      if (congruenceScore >= 0.70) {
+        // Cross-check: true period must be consistent with observed inter-arrival gaps
+        const dividesDeltas = deltas.filter(d => (d % T <= 1) || ((T - (d % T)) <= 1)).length / deltas.length;
+        const totalScore = congruenceScore * 0.6 + dividesDeltas * 0.4;
+        if (totalScore > bestScore) {
           bestT = T;
           bestPhi = dominantPhi;
-          bestScore = score;
+          bestScore = totalScore;
         }
       }
     }
@@ -148,7 +166,6 @@ export class OptimalPeriodicEstimator {
       if (T !== null && phi !== null && this.confidence[b] >= 0.3) {
         const slot = ((t - phi) % T + T) % T;
         if (slot < W) {
-          // Give higher urgency to the rising edge (slot 0)
           const urgency = (slot === 0 ? 1.5 : 1.0) * this.confidence[b];
           candidateBands.push({ band: b, urgency });
         }
@@ -168,9 +185,7 @@ export class OptimalPeriodicEstimator {
 
     for (let b = 0; b < this.numBands; b++) {
       const n = this.dwellCounts[b];
-      if (n === 0) {
-        return b; // Initial exploration pass
-      }
+      if (n === 0) return b;
       const exploitation = this.hitCounts[b] / n;
       const exploration = Math.sqrt((2 * Math.log(t + 1)) / n);
       const score = exploitation + 1.2 * exploration;
@@ -184,23 +199,30 @@ export class OptimalPeriodicEstimator {
   }
 }
 
-// ─── 2. Q-Learning Agent ──────────────────────────────────────────────────────
+// ─── 2. Full-Spectrum Belief-State Q-Learning Agent ───────────────────────────
 export class QLearningAgent {
   constructor(numBands, config = {}, rng = globalRNG) {
     this.numBands = numBands;
     this.rng = rng;
-    this.alpha = config.alpha ?? 0.15;      // Learning rate
-    this.gamma = config.gamma ?? 0.85;     // Discount factor
-    this.epsilon = config.epsilon ?? 1.0;   // Exploration rate
+    this.alpha = config.alpha ?? 0.06;       // Learning rate
+    this.gamma = config.gamma ?? 0.85;      // Discount factor
+    this.epsilon = config.epsilon ?? 1.0;    // Exploration rate
     this.epsilonMin = config.epsilonMin ?? 0.05;
-    this.epsilonDecay = config.epsilonDecay ?? 0.995;
-    this.evalMode = config.evalMode ?? false; // Freeze weights & exploration in eval mode
+    this.epsilonDecay = config.epsilonDecay ?? 0.996;
+    this.evalMode = config.evalMode ?? false; // Freeze weights in eval mode
+    this.numFeatures = 5;
 
-    // Q-table: state = current band, action = next band to tune
-    this.qTable = Array.from({ length: numBands }, () => new Array(numBands).fill(0));
+    // Linear weights per band: [numBands][numFeatures]
+    this.weights = Array.from({ length: numBands }, () => new Float64Array(this.numFeatures).fill(0.1));
+    this.dwellCounts = new Array(numBands).fill(0);
+    this.hitCounts = new Array(numBands).fill(0);
+    this.lastDwellStep = new Array(numBands).fill(0);
+    this.consecutiveMisses = new Array(numBands).fill(0);
+
     this.totalReward = 0;
     this.rewardHistory = [];
     this.steps = 0;
+    this.currentStep = 0;
   }
 
   setEvaluationMode(isEval) {
@@ -208,36 +230,72 @@ export class QLearningAgent {
   }
 
   /**
-   * Choose next band using epsilon-greedy policy (or pure exploit if evalMode is true)
+   * Constructs full-spectrum situational awareness feature vector for candidate band
+   * @param {number} band - Channel index
+   * @param {number} t - Current mission time step
    */
-  selectBand(currentBand) {
+  getFeatures(band, t) {
+    const staleness = Math.min(2.5, (t - this.lastDwellStep[band]) / this.numBands);
+    const empiricalRate = (this.hitCounts[band] + 0.5) / (this.dwellCounts[band] + 1.0);
+    const missPenalty = Math.min(1.0, this.consecutiveMisses[band] / 4.0);
+    const urgency = staleness * empiricalRate;
+    const bias = 1.0;
+    return [staleness, empiricalRate, urgency, missPenalty, bias];
+  }
+
+  /** Compute action-value Q(s, band) = w_band^T * phi(band) */
+  computeQ(band, t) {
+    const phi = this.getFeatures(band, t);
+    const w = this.weights[band];
+    let q = 0;
+    for (let j = 0; j < this.numFeatures; j++) q += w[j] * phi[j];
+    return q;
+  }
+
+  /**
+   * Choose next band using epsilon-greedy policy over full-spectrum Q-values
+   */
+  selectBand(currentBand, t = 0) {
+    this.currentStep = t;
     const effEpsilon = this.evalMode ? 0.0 : this.epsilon;
 
     if (this.rng.random() < effEpsilon) {
-      return this.rng.randInt(0, this.numBands - 1); // Explore
+      return this.rng.randInt(0, this.numBands - 1);
     }
 
-    // Exploit: argmax_a Q(currentBand, a) with random tie-breaking
-    const row = this.qTable[currentBand];
     let maxQ = -Infinity;
     let bestActions = [];
 
-    for (let a = 0; a < this.numBands; a++) {
-      if (row[a] > maxQ) {
-        maxQ = row[a];
-        bestActions = [a];
-      } else if (row[a] === maxQ) {
-        bestActions.push(a);
+    for (let b = 0; b < this.numBands; b++) {
+      const q = this.computeQ(b, t);
+      if (q > maxQ) {
+        maxQ = q;
+        bestActions = [b];
+      } else if (q === maxQ) {
+        bestActions.push(b);
       }
     }
+
     return bestActions[this.rng.randInt(0, bestActions.length - 1)];
   }
 
   /**
-   * Rigorous Q-Learning TD update (SARSAMAX):
-   * Q(s, a) ← Q(s, a) + α · [ R + γ · max_{a'} Q(s', a') − Q(s, a) ]
+   * Rigorous Q-Learning Gradient Temporal Difference Update:
+   * w_a <- w_a + alpha * [ R + gamma * max_{a'} Q(s', a') - Q(s, a) ] * phi(s, a)
    */
-  update(fromBand, actionBand, reward, nextStateBand) {
+  update(fromBand, actionBand, reward, nextStateBand, activity = null, t = null) {
+    const curT = t !== null ? t : this.currentStep;
+    this.dwellCounts[actionBand]++;
+    this.lastDwellStep[actionBand] = curT;
+
+    const wasHit = (activity && activity[actionBand]) || reward > 0;
+    if (wasHit) {
+      this.hitCounts[actionBand]++;
+      this.consecutiveMisses[actionBand] = 0;
+    } else {
+      this.consecutiveMisses[actionBand]++;
+    }
+
     if (this.evalMode) {
       this.totalReward += reward;
       this.rewardHistory.push(this.totalReward);
@@ -245,12 +303,24 @@ export class QLearningAgent {
       return;
     }
 
-    // Target max Q-value over next state actions
-    const maxNextQ = Math.max(...this.qTable[nextStateBand]);
-    const currentQ = this.qTable[fromBand][actionBand];
+    // Compute Q(s, a)
+    const phi = this.getFeatures(actionBand, curT);
+    const currentQ = this.computeQ(actionBand, curT);
 
-    // TD error update
-    this.qTable[fromBand][actionBand] = currentQ + this.alpha * (reward + this.gamma * maxNextQ - currentQ);
+    // Compute max Q(s', a') for next step curT + 1
+    let maxNextQ = -Infinity;
+    for (let b = 0; b < this.numBands; b++) {
+      const qNext = this.computeQ(b, curT + 1);
+      if (qNext > maxNextQ) maxNextQ = qNext;
+    }
+
+    // TD Error
+    const tdError = reward + this.gamma * maxNextQ - currentQ;
+    const w = this.weights[actionBand];
+    for (let j = 0; j < this.numFeatures; j++) {
+      w[j] += this.alpha * tdError * phi[j];
+    }
+
     this.totalReward += reward;
     this.rewardHistory.push(this.totalReward);
 
@@ -261,15 +331,26 @@ export class QLearningAgent {
   }
 
   reset() {
-    this.qTable = Array.from({ length: this.numBands }, () => new Array(this.numBands).fill(0));
+    this.weights = Array.from({ length: this.numBands }, () => new Float64Array(this.numFeatures).fill(0.1));
+    this.dwellCounts = new Array(this.numBands).fill(0);
+    this.hitCounts = new Array(this.numBands).fill(0);
+    this.lastDwellStep = new Array(this.numBands).fill(0);
+    this.consecutiveMisses = new Array(this.numBands).fill(0);
     this.totalReward = 0;
     this.rewardHistory = [];
     this.epsilon = 1.0;
     this.steps = 0;
+    this.currentStep = 0;
   }
 
+  /** Returns flat N x N representation for UI heatmap visualizer */
   getQTableFlat() {
-    return this.qTable.map(row => [...row]);
+    const curT = this.currentStep;
+    return Array.from({ length: this.numBands }, (row, from) => {
+      return Array.from({ length: this.numBands }, (col, to) => {
+        return this.computeQ(to, curT);
+      });
+    });
   }
 
   /** Export model weights for persistence */
@@ -279,7 +360,9 @@ export class QLearningAgent {
       alpha: this.alpha,
       gamma: this.gamma,
       epsilon: this.epsilon,
-      qTable: this.qTable,
+      weights: this.weights.map(w => Array.from(w)),
+      dwellCounts: this.dwellCounts,
+      hitCounts: this.hitCounts,
       steps: this.steps,
       totalReward: this.totalReward,
     }, null, 2);
@@ -289,8 +372,8 @@ export class QLearningAgent {
   importModelJSON(jsonString) {
     try {
       const data = typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
-      if (data.qTable && Array.isArray(data.qTable)) {
-        this.qTable = data.qTable;
+      if (data.weights && Array.isArray(data.weights)) {
+        this.weights = data.weights.map(w => new Float64Array(w));
         this.numBands = data.numBands ?? this.numBands;
         this.alpha = data.alpha ?? this.alpha;
         this.gamma = data.gamma ?? this.gamma;

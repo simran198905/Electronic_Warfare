@@ -42,7 +42,7 @@ const aggregatedResults = {};
 
 for (const seed of SEEDS) {
   const env = new RFEnvironment({ numBands: NUM_BANDS, seed });
-  const strategies = createAllStrategies(NUM_BANDS);
+  const strategies = createAllStrategies(NUM_BANDS, seed);
   const metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
 
   for (let t = 0; t < STEPS; t++) {

@@ -159,21 +159,14 @@ export class RFEnvironment {
       return;
     }
     const defaults = [
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 0, period: 8, duty: 0.5 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 3, period: 12, duty: 0.3 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 7, period: 6, duty: 0.6 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 11, period: 20, duty: 0.25 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 14, period: 9, duty: 0.45 },
-      { type: EMITTER_TYPES.AGILE, hopInterval: 4, txProb: 0.75 },
-      { type: EMITTER_TYPES.AGILE, hopInterval: 7, txProb: 0.65 },
-      { type: EMITTER_TYPES.AGILE, hopInterval: 3, txProb: 0.80 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 5, txProb: 0.35 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 9, txProb: 0.45 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 13, txProb: 0.25 },
-      { type: EMITTER_TYPES.BURST, homeBand: 2, burstLength: 3, burstGap: 10 },
-      { type: EMITTER_TYPES.BURST, homeBand: 10, burstLength: 5, burstGap: 8 },
-      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 6, rotationPeriod: 14, beamwidthDeg: 40, rxAzimuthDeg: 90 },
-      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 12, rotationPeriod: 22, beamwidthDeg: 30, rxAzimuthDeg: 180 },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 1, period: 10, duty: 0.20 },
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 9, period: 15, duty: 0.20 },
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 4, rotationPeriod: 18, beamwidthDeg: 30, rxAzimuthDeg: 90 },
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 12, rotationPeriod: 24, beamwidthDeg: 25, rxAzimuthDeg: 180 },
+      { type: EMITTER_TYPES.AGILE, hopInterval: 5, txProb: 0.65 },
+      { type: EMITTER_TYPES.AGILE, hopInterval: 8, txProb: 0.50 },
+      { type: EMITTER_TYPES.BURST, homeBand: 7, burstLength: 3, burstGap: 12 },
+      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 14, txProb: 0.30 },
     ];
     defaults.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg, this.rng)));
   }

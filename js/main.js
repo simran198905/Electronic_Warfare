@@ -11,7 +11,7 @@ const WATERFALL_COLS = 80; // time steps visible in waterfall
 let currentSeed = 42;
 let isEvalMode = false;
 let env = new RFEnvironment({ numBands: NUM_BANDS, seed: currentSeed });
-let strategies = createAllStrategies(NUM_BANDS);
+let strategies = createAllStrategies(NUM_BANDS, currentSeed);
 let metrics = strategies.map(s => new MetricsTracker(s.name, s.color));
 let duelController = new OperatorDuelController(NUM_BANDS);
 
@@ -476,7 +476,7 @@ function resetSim(numBands) {
   pauseSim();
   const nb = numBands ?? NUM_BANDS;
   env = new RFEnvironment({ numBands: nb, seed: currentSeed });
-  strategies = createAllStrategies(nb);
+  strategies = createAllStrategies(nb, currentSeed);
   duelController.setNumBands(nb);
 
   const qStrat = strategies.find(s => s.name.includes('Q-Learning'));

@@ -59,26 +59,30 @@ export class MetricsTracker {
 
     let reward = 0;
     if (bandActive) {
-      // True Positive (Hit)
+      // True Positive (Hit): intercepted active radar pulse
       this.hits++;
       reward = 1.0;
       if (this.emissionStartTimes[band] !== undefined) {
         this.interceptTimes.push(t - this.emissionStartTimes[band]);
         delete this.emissionStartTimes[band];
       }
-    } else if (noiseTriggered) {
-      // False Positive (False Alarm due to thermal noise on quiet channel)
-      this.falseAlarms++;
-      reward = -0.05;
-    } else if (anyActive) {
-      // False Negative (Missed active transmission)
-      this.misses++;
-      this.trueNegatives++;
-      reward = -0.10;
     } else {
-      // True Negative (Quiet channel correctly scanned)
-      this.trueNegatives++;
-      reward = 0.00;
+      // Receiver tuned to a quiet channel
+      if (noiseTriggered) {
+        // False Positive (False Alarm due to thermal noise)
+        this.falseAlarms++;
+        reward = -0.05;
+      } else {
+        // True Negative (Quiet channel correctly observed)
+        this.trueNegatives++;
+        reward = 0.00;
+      }
+
+      // If transmissions were occurring simultaneously elsewhere in spectrum, log miss
+      if (anyActive) {
+        this.misses++;
+        reward -= 0.10;
+      }
     }
 
     this.cumulativeReward += reward;
