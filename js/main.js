@@ -354,11 +354,15 @@ function switchTab(tab) {
 
 // ─── Simulation Loop ──────────────────────────────────────────────────────────
 function stepOnce() {
-  const { activity, noise } = env.step();
+  const envResult = env.step();
+  const { activity, noise } = envResult;
   stepCount++;
 
   // 1. Human Operator step & audio synthesis
   const humanStep = duelController.step(activity, stepCount, noise, env.emitters);
+  if (humanStep && humanStep.band !== undefined) {
+    env.notifyReceiverDwell(humanStep.band);
+  }
 
   // Update channel key visual signals
   activity.forEach((active, b) => {
@@ -377,8 +381,9 @@ function stepOnce() {
   // 2. Each AI strategy independently picks a band and receives reward
   strategies.forEach((strat, i) => {
     const band = strat.selectBand(stepCount);
-    const reward = metrics[i].record(band, activity, stepCount, noise);
-    strat.update(band, reward, activity, stepCount);
+    env.notifyReceiverDwell(band);
+    const reward = metrics[i].record(band, activity, stepCount, noise, envResult);
+    strat.update(band, reward, activity, stepCount, envResult);
     receiverPositions[i].push(band);
     if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
   });
@@ -956,7 +961,7 @@ function renderEmitterTable() {
   }).join('');
 }
 
-// ─── Analysis Tab (All 7 Figures of Merit) ──────────────────────────────────────
+// ─── Analysis Tab (All Figures of Merit) ──────────────────────────────────────
 function renderAnalysis() {
   const tbody = document.getElementById('analysis-tbody');
   if (!tbody) return;
@@ -974,6 +979,8 @@ function renderAnalysis() {
       <td>${m.misses}</td>
       <td>${m.falseAlarms}</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
+      <td>${m.threatWeightedReward.toFixed(1)}</td>
+      <td>${m.retuneEfficiency.toFixed(1)}%</td>
     </tr>`;
   }).join('');
 }
@@ -992,16 +999,18 @@ function updateCompareSummaryTable() {
       <td>${(m.sensitivity * 100).toFixed(1)}%</td>
       <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
+      <td>${m.threatWeightedReward.toFixed(1)}</td>
+      <td>${m.retuneEfficiency.toFixed(1)}%</td>
     </tr>`;
   }).join('');
 }
 
 // ─── CSV & Model Weight Exporters ─────────────────────────────────────────────
 function exportCSVReport() {
-  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward\n';
+  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward,ThreatReward,RetuneEfficiency (%)\n';
   strategies.forEach((s, i) => {
     const m = metrics[i].getSummary();
-    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)}\n`;
+    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)},${m.threatWeightedReward.toFixed(2)},${m.retuneEfficiency.toFixed(2)}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv' });

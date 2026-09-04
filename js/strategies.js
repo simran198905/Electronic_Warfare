@@ -3,7 +3,7 @@
  * Each strategy implements: selectBand(t) and update(band, reward, activity, t)
  */
 
-import { QLearningAgent, UCBAgent, OptimalPeriodicEstimator } from './qlearning.js';
+import { QLearningAgent, UCBAgent, OptimalPeriodicEstimator, WhittleIndexAgent } from './qlearning.js';
 import { SeededRNG } from './simulator.js';
 
 export class SequentialStrategy {
@@ -129,9 +129,36 @@ export class QLearningStrategy {
   getAgent() { return this.agent; }
 }
 
+export class WhittleIndexStrategy {
+  constructor(numBands, rng = new SeededRNG(42)) {
+    this.numBands = numBands;
+    this.agent = new WhittleIndexAgent(numBands, {}, rng);
+    this.currentBand = 0;
+    this.chosenAction = 0;
+    this.name = 'Whittle-Index (Restless MAB)';
+    this.color = '#10b981';
+    this.description = 'Restless Multi-Armed Bandit with dynamic Markov belief state, threat-weighted index, and retune penalty.';
+  }
+  selectBand(t = 0) {
+    this.chosenAction = this.agent.selectBand(this.currentBand, t);
+    return this.chosenAction;
+  }
+  update(actionBand, reward, activity, t = 0, envDetails = null) {
+    this.agent.update(actionBand, reward, activity, t, envDetails);
+    this.currentBand = actionBand;
+  }
+  reset() {
+    this.agent.reset();
+    this.currentBand = 0;
+    this.chosenAction = 0;
+  }
+  getAgent() { return this.agent; }
+}
+
 export function createAllStrategies(numBands, seed = 42) {
   const rngRandom = new SeededRNG(seed + 101);
   const rngQ = new SeededRNG(seed + 202);
+  const rngWhittle = new SeededRNG(seed + 303);
 
   return [
     new SequentialStrategy(numBands),
@@ -140,6 +167,7 @@ export function createAllStrategies(numBands, seed = 42) {
     new PeriodicCoincidenceStrategy(numBands),
     new UCBStrategy(numBands),
     new QLearningStrategy(numBands, rngQ),
+    new WhittleIndexStrategy(numBands, rngWhittle),
   ];
 }
 

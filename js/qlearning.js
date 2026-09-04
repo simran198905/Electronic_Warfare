@@ -197,6 +197,57 @@ export class OptimalPeriodicEstimator {
 
     return bestB;
   }
+
+  /**
+   * Forward-Looking Prediction Engine:
+   * Predicts intercept opportunities and expected arrival slots over a future horizon.
+   * Enables ES scheduler to project intercept times and interception ratios before dwell.
+   * @param {number} horizon - Number of future time steps to forecast (default: 10)
+   * @returns {Object} Forecast containing predicted hits, expected arrival times, and confidence
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const predictions = [];
+    let expectedIntercepts = 0;
+
+    for (let b = 0; b < this.numBands; b++) {
+      const T = this.estimatedPeriod[b];
+      const phi = this.estimatedPhase[b];
+      const conf = this.confidence[b];
+      if (T !== null && phi !== null && conf >= 0.25) {
+        const arrivalSlots = [];
+        for (let dt = 1; dt <= horizon; dt++) {
+          const tFuture = curT + dt;
+          const slot = ((tFuture - phi) % T + T) % T;
+          if (slot === 0) {
+            arrivalSlots.push({ tFuture, dt });
+          }
+        }
+        if (arrivalSlots.length > 0) {
+          const nextArrival = arrivalSlots[0];
+          predictions.push({
+            band: b,
+            expectedArrivalStep: nextArrival.tFuture,
+            timeToNextIntercept: nextArrival.dt,
+            period: T,
+            confidence: conf,
+          });
+          expectedIntercepts += arrivalSlots.length * conf;
+        }
+      }
+    }
+
+    predictions.sort((a, b) => a.timeToNextIntercept - b.timeToNextIntercept);
+    const predictedInterceptionRatio = horizon > 0 ? expectedIntercepts / horizon : 0;
+
+    return {
+      currentStep: curT,
+      horizon,
+      predictions,
+      predictedInterceptionRatio: Math.min(1.0, predictedInterceptionRatio),
+      expectedInterceptCount: expectedIntercepts,
+    };
+  }
 }
 
 // ─── 2. Full-Spectrum Belief-State Q-Learning Agent ───────────────────────────
@@ -210,7 +261,7 @@ export class QLearningAgent {
     this.epsilonMin = config.epsilonMin ?? 0.05;
     this.epsilonDecay = config.epsilonDecay ?? 0.996;
     this.evalMode = config.evalMode ?? false; // Freeze weights in eval mode
-    this.numFeatures = 5;
+    this.numFeatures = 6;
 
     // Linear weights per band: [numBands][numFeatures]
     this.weights = Array.from({ length: numBands }, () => new Float64Array(this.numFeatures).fill(0.1));
@@ -218,6 +269,7 @@ export class QLearningAgent {
     this.hitCounts = new Array(numBands).fill(0);
     this.lastDwellStep = new Array(numBands).fill(0);
     this.consecutiveMisses = new Array(numBands).fill(0);
+    this.lastActionBand = 0;
 
     this.totalReward = 0;
     this.rewardHistory = [];
@@ -239,8 +291,9 @@ export class QLearningAgent {
     const empiricalRate = (this.hitCounts[band] + 0.5) / (this.dwellCounts[band] + 1.0);
     const missPenalty = Math.min(1.0, this.consecutiveMisses[band] / 4.0);
     const urgency = staleness * empiricalRate;
+    const hopPenalty = Math.abs(band - this.lastActionBand) / this.numBands;
     const bias = 1.0;
-    return [staleness, empiricalRate, urgency, missPenalty, bias];
+    return [staleness, empiricalRate, urgency, missPenalty, hopPenalty, bias];
   }
 
   /** Compute action-value Q(s, band) = w_band^T * phi(band) */
@@ -287,6 +340,7 @@ export class QLearningAgent {
     const curT = t !== null ? t : this.currentStep;
     this.dwellCounts[actionBand]++;
     this.lastDwellStep[actionBand] = curT;
+    this.lastActionBand = actionBand;
 
     const wasHit = (activity && activity[actionBand]) || reward > 0;
     if (wasHit) {
@@ -336,11 +390,43 @@ export class QLearningAgent {
     this.hitCounts = new Array(this.numBands).fill(0);
     this.lastDwellStep = new Array(this.numBands).fill(0);
     this.consecutiveMisses = new Array(this.numBands).fill(0);
+    this.lastActionBand = 0;
     this.totalReward = 0;
     this.rewardHistory = [];
     this.epsilon = 1.0;
     this.steps = 0;
     this.currentStep = 0;
+  }
+
+  /**
+   * Forward-Looking Prediction Engine:
+   * Uses learned Q-values and staleness dynamics to project next high-probability intercept bands.
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const bandScores = [];
+    for (let b = 0; b < this.numBands; b++) {
+      const q = this.computeQ(b, curT);
+      const empiricalRate = (this.hitCounts[b] + 0.5) / (this.dwellCounts[b] + 1.0);
+      const staleness = (curT - this.lastDwellStep[b]);
+      bandScores.push({
+        band: b,
+        qValue: q,
+        empiricalRate,
+        staleness,
+        confidence: Math.min(1.0, this.dwellCounts[b] / 15.0),
+      });
+    }
+    bandScores.sort((a, b) => b.qValue - a.qValue);
+    const topCandidates = bandScores.slice(0, 3);
+    const avgTopRate = topCandidates.reduce((sum, c) => sum + c.empiricalRate, 0) / topCandidates.length;
+
+    return {
+      currentStep: curT,
+      horizon,
+      topCandidates,
+      predictedInterceptionRatio: Math.min(1.0, avgTopRate),
+    };
   }
 
   /** Returns flat N x N representation for UI heatmap visualizer */
@@ -432,4 +518,148 @@ export class UCBAgent {
     this.rewardHistory = [];
   }
 }
+
+// ─── 4. Restless Multi-Armed Bandit (Whittle Index Policy) ───────────────────
+/**
+ * Whittle Index Policy for Restless Multi-Armed Bandit (RMAB) Spectrum Search.
+ * Models each frequency channel as an evolving two-state Markov process:
+ * - State 1: Radiating (Active)
+ * - State 0: Silent (Idle)
+ * Even when unobserved, channels transition according to estimated rates P(0->1) and P(1->1).
+ * The Whittle index quantifies the marginal subsidy for passivity:
+ * W_b(pi_b, tau_b) = Threat_b * [ pi_b(t) + c * sqrt(ln(t)/N_b) ] - C_retune * |b - b_current| / N
+ */
+export class WhittleIndexAgent {
+  constructor(numBands, config = {}, rng = globalRNG) {
+    this.numBands = numBands;
+    this.rng = rng;
+    this.explorationConst = config.explorationConst ?? 1.2;
+    this.retuneWeight = config.retuneWeight ?? 0.15;
+    this.reset();
+  }
+
+  reset() {
+    this.dwellCounts = new Array(this.numBands).fill(0);
+    this.hitCounts = new Array(this.numBands).fill(0);
+    this.lastDwellStep = new Array(this.numBands).fill(0);
+    this.lastObservedState = new Array(this.numBands).fill(false);
+    this.threatEstimates = new Array(this.numBands).fill(1.0);
+    this.p01 = new Array(this.numBands).fill(0.15); // P(idle -> active)
+    this.p11 = new Array(this.numBands).fill(0.40); // P(active -> active)
+    this.currentStep = 0;
+    this.lastTunedBand = 0;
+    this.totalReward = 0;
+    this.rewardHistory = [];
+  }
+
+  /**
+   * Compute restless Markov belief state pi_b(t) = P(channel b is active at time t)
+   */
+  getBelief(b, t) {
+    const tau = Math.max(0, t - this.lastDwellStep[b]);
+    const pi0 = this.lastObservedState[b] ? 1.0 : 0.0;
+    const p01 = this.p01[b];
+    const p10 = Math.max(0.01, 1.0 - this.p11[b]);
+    const stationaryProb = p01 / (p01 + p10);
+
+    // Dynamic Markov propagation across tau idle steps
+    const lambda = 1.0 - p01 - p10;
+    return stationaryProb + Math.pow(lambda, tau) * (pi0 - stationaryProb);
+  }
+
+  /**
+   * Compute closed-form Whittle index for channel b
+   */
+  computeWhittleIndex(b, currentBand, t) {
+    const belief = this.getBelief(b, t);
+    const n = this.dwellCounts[b];
+    const threatMult = this.threatEstimates[b];
+    const exploration = Math.sqrt((2 * Math.log(t + 2)) / (n + 1));
+    const retunePenalty = this.retuneWeight * (Math.abs(b - currentBand) / this.numBands);
+
+    // Whittle index: threat-scaled active belief + exploration bonus - retune latency subsidy
+    return (threatMult * (belief + this.explorationConst * exploration)) - retunePenalty;
+  }
+
+  selectBand(currentBand = 0, t = 0) {
+    this.currentStep = t;
+    this.lastTunedBand = currentBand;
+
+    // Ensure all channels are initially probed
+    for (let b = 0; b < this.numBands; b++) {
+      if (this.dwellCounts[b] === 0) return b;
+    }
+
+    let maxIndex = -Infinity;
+    let bestBands = [];
+
+    for (let b = 0; b < this.numBands; b++) {
+      const idx = this.computeWhittleIndex(b, currentBand, t);
+      if (idx > maxIndex) {
+        maxIndex = idx;
+        bestBands = [b];
+      } else if (Math.abs(idx - maxIndex) < 1e-6) {
+        bestBands.push(b);
+      }
+    }
+
+    return bestBands[this.rng.randInt(0, bestBands.length - 1)];
+  }
+
+  update(band, reward, activity = null, t = null, envDetails = null) {
+    const curT = t !== null ? t : this.currentStep;
+    const wasHit = (activity && activity[band]) || reward > 0;
+
+    // Update transition statistics
+    const prevObs = this.lastObservedState[band];
+    if (this.dwellCounts[band] > 0) {
+      if (!prevObs && wasHit) {
+        this.p01[band] = 0.9 * this.p01[band] + 0.1 * 1.0;
+      } else if (prevObs && wasHit) {
+        this.p11[band] = 0.9 * this.p11[band] + 0.1 * 1.0;
+      }
+    }
+
+    this.dwellCounts[band]++;
+    if (wasHit) this.hitCounts[band]++;
+    this.lastDwellStep[band] = curT;
+    this.lastObservedState[band] = wasHit;
+
+    if (envDetails && envDetails.maxThreatPerBand && envDetails.maxThreatPerBand[band] > 0) {
+      this.threatEstimates[band] = Math.max(1.0, envDetails.maxThreatPerBand[band] / 2.0);
+    }
+
+    this.totalReward += reward;
+    this.rewardHistory.push(this.totalReward);
+  }
+
+  /**
+   * Forward-Looking Prediction: forecast high-probability intercept channels over horizon
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const predictions = [];
+    for (let b = 0; b < this.numBands; b++) {
+      const belief = this.getBelief(b, curT);
+      const threat = this.threatEstimates[b];
+      predictions.push({
+        band: b,
+        beliefActive: belief,
+        threatLevel: threat,
+        expectedScore: belief * threat,
+      });
+    }
+    predictions.sort((a, b) => b.expectedScore - a.expectedScore);
+    const topCandidates = predictions.slice(0, 3);
+    const predictedInterceptionRatio = topCandidates.reduce((s, c) => s + c.beliefActive, 0) / topCandidates.length;
+
+    return {
+      currentStep: curT,
+      horizon,
+      topCandidates,
+      predictedInterceptionRatio: Math.min(1.0, predictedInterceptionRatio),
+    };
+  }
+}
+
 

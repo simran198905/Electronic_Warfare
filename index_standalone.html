@@ -1668,6 +1668,8 @@ tbody tr:hover {
           <th>Sensitivity</th>
           <th>CPC (%)</th>
           <th>Reward</th>
+          <th>Threat Rew</th>
+          <th>Retune Eff</th>
         </tr></thead>
         <tbody id="analysis-tbody-compare"></tbody>
       </table>
@@ -1767,6 +1769,8 @@ tbody tr:hover {
         <th>Misses</th>
         <th>False Alarms</th>
         <th>Cum. Reward</th>
+        <th>Threat Rew</th>
+        <th>Retune Eff</th>
       </tr></thead>
       <tbody id="analysis-tbody"></tbody>
     </table>
@@ -2028,13 +2032,36 @@ const EMITTER_TYPES = {
   SPATIAL_SCAN: 'spatial_scan', // Rotating radar beam illumination
 };
 
+// Threat lethality priority levels (1 = minimal, 5 = critical/fire-control)
+const THREAT_LEVELS = {
+  CRITICAL: 5,   // Missile guidance / Target tracking radar
+  HIGH: 4,       // Fire control / Acquisition radar
+  MEDIUM: 3,     // Surveillance / Early warning 360° radar
+  LOW: 2,        // Navigation / Weather radar
+  INFO: 1,       // Tactical communications / Beacon
+};
+
+// Physical RF hardware specification defaults
+const RF_HARDWARE_SPECS = {
+  FREQ_MIN_GHZ: 2.0,            // Lower boundary (S-band)
+  FREQ_MAX_GHZ: 18.0,           // Upper boundary (Ku-band)
+  DWELL_TIME_US: 50.0,          // 50 microseconds dwell duration per step
+  RETUNE_LATENCY_PER_HOP_US: 2.5, // 2.5 us PLL settling time per channel distance
+  NOISE_FLOOR_DBM: -95.0,       // Receiver thermal noise floor
+  DETECTION_THRESHOLD_DBM: -90.0, // Sensitivity: minimum detectable signal power
+};
+
 class Emitter {
   constructor(id, type, config = {}, rng = globalRNG) {
     this.id = id;
     this.type = type;
     this.config = config;
     this.rng = rng;
+    this.threatLevel = config.threatLevel ?? THREAT_LEVELS.MEDIUM;
+    this.txPowerDbm = config.txPowerDbm ?? 50.0; // EIRP in dBm (100 W)
+    this.distanceKm = config.distanceKm ?? 30.0; // Standoff distance
     this.state = false;
+    this.snrDb = 15.0; // Instantaneous SNR at receiver
     this.phase = this.rng.randInt(0, 19);
     this.currentBand = config.homeBand ?? 0;
     this.burstCounter = 0;
@@ -2042,11 +2069,29 @@ class Emitter {
     this.burstGap = config.burstGap ?? 7;
     this.inBurst = false;
 
+    // Reactive / Adversarial ECCM tracking: detects if being tracked
+    this.interceptCountInCurrentMode = 0;
+    this.evasionTriggerCount = config.evasionTriggerCount ?? 2;
+
     // Spatial scan radar antenna properties
     this.rotationPeriod = config.rotationPeriod ?? 16; // Time steps for 360-deg rotation
     this.beamwidthDeg = config.beamwidthDeg ?? 35;     // 3dB Mainlobe beamwidth
     this.rxAzimuthDeg = config.rxAzimuthDeg ?? 90;     // Angle of ES receiver relative to radar
     this.currentAzimuth = config.initialAzimuth ?? this.rng.randInt(0, 359);
+  }
+
+  /**
+   * Called when the ES receiver intercepts this emitter.
+   * Hostile / adaptive emitters execute reactive electronic counter-countermeasures (ECCM).
+   */
+  onIntercepted(numBands) {
+    this.interceptCountInCurrentMode++;
+    if (this.type === EMITTER_TYPES.AGILE && this.interceptCountInCurrentMode >= this.evasionTriggerCount) {
+      // Evasive jump: execute immediate frequency hop to evade intercept lock
+      const hopOffset = this.rng.randInt(1, Math.max(1, numBands - 1));
+      this.currentBand = (this.currentBand + hopOffset) % numBands;
+      this.interceptCountInCurrentMode = 0;
+    }
   }
 
   step(t, numBands) {
@@ -2123,13 +2168,13 @@ class Emitter {
 
 class RFEnvironment {
   constructor(config = {}) {
+    this.config = config;
     this.numBands = config.numBands ?? 16;
     this.seed = config.seed ?? 42;
     this.rng = new SeededRNG(this.seed);
-    this.noiseProb = config.noiseProb ?? 0.02; // Receiver thermal false alarm probability
+    this.noiseProb = config.noiseProb ?? 0.02; // CFAR thermal false alarm rate
     this.emitters = [];
     this.t = 0;
-    this.bandActivity = new Array(this.numBands).fill(false);
     this.rawNoise = new Array(this.numBands).fill(false);
     this.history = [];
     this.maxHistory = config.maxHistory ?? 500;
@@ -2147,27 +2192,85 @@ class RFEnvironment {
       emitterConfigs.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg, this.rng)));
       return;
     }
-    const defaults = [
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 1, period: 10, duty: 0.20 },
-      { type: EMITTER_TYPES.PERIODIC, homeBand: 9, period: 15, duty: 0.20 },
-      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 4, rotationPeriod: 18, beamwidthDeg: 30, rxAzimuthDeg: 90 },
-      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 12, rotationPeriod: 24, beamwidthDeg: 25, rxAzimuthDeg: 180 },
-      { type: EMITTER_TYPES.AGILE, hopInterval: 5, txProb: 0.65 },
-      { type: EMITTER_TYPES.AGILE, hopInterval: 8, txProb: 0.50 },
-      { type: EMITTER_TYPES.BURST, homeBand: 7, burstLength: 3, burstGap: 12 },
-      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 14, txProb: 0.30 },
+    let defaults = [
+      // 1. Critical Threat: Missile Guidance / Fire Control Radar on Band 1
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 1, period: 10, duty: 0.20, threatLevel: THREAT_LEVELS.CRITICAL, txPowerDbm: 58.0, distanceKm: 25.0 },
+      // 2. High Threat: Target Acquisition Periodic Radar on Band 9
+      { type: EMITTER_TYPES.PERIODIC, homeBand: 9, period: 15, duty: 0.20, threatLevel: THREAT_LEVELS.HIGH, txPowerDbm: 52.0, distanceKm: 35.0 },
+      // 3. Medium Threat: Early Warning S-Band 360° Rotating Radar
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 4, rotationPeriod: 18, beamwidthDeg: 30, rxAzimuthDeg: 90, threatLevel: THREAT_LEVELS.MEDIUM, txPowerDbm: 60.0, distanceKm: 60.0 },
+      // 4. Medium Threat: Naval Surveillance Ku-Band Search Radar
+      { type: EMITTER_TYPES.SPATIAL_SCAN, homeBand: 12, rotationPeriod: 24, beamwidthDeg: 25, rxAzimuthDeg: 180, threatLevel: THREAT_LEVELS.MEDIUM, txPowerDbm: 55.0, distanceKm: 45.0 },
+      // 5. Critical Threat: Reactive Frequency-Agile Countermeasure / Interrogator
+      { type: EMITTER_TYPES.AGILE, hopInterval: 5, txProb: 0.65, threatLevel: THREAT_LEVELS.CRITICAL, txPowerDbm: 48.0, distanceKm: 20.0, evasionTriggerCount: 2 },
+      // 6. High Threat: Multi-Channel Agile Tactical Transmitter
+      { type: EMITTER_TYPES.AGILE, hopInterval: 8, txProb: 0.50, threatLevel: THREAT_LEVELS.HIGH, txPowerDbm: 45.0, distanceKm: 30.0, evasionTriggerCount: 3 },
+      // 7. Low Threat: Low Probability of Intercept (LPI) Burst Telemetry
+      { type: EMITTER_TYPES.BURST, homeBand: 7, burstLength: 3, burstGap: 12, threatLevel: THREAT_LEVELS.LOW, txPowerDbm: 38.0, distanceKm: 40.0 },
+      // 8. Info Threat: Routine Navigation Beacon
+      { type: EMITTER_TYPES.INTERMITTENT, homeBand: 14, txProb: 0.30, threatLevel: THREAT_LEVELS.INFO, txPowerDbm: 30.0, distanceKm: 50.0 },
     ];
-    defaults.forEach((cfg, i) => this.emitters.push(new Emitter(i, cfg.type, cfg, this.rng)));
+    if (this.config.maxEmitters && this.config.maxEmitters < defaults.length) {
+      defaults = defaults.slice(0, this.config.maxEmitters);
+    }
+    const distMult = this.config.distanceMultiplier ?? 1.0;
+    defaults.forEach((cfg, i) => {
+      const cfgCopy = { ...cfg, distanceKm: cfg.distanceKm * distMult };
+      this.emitters.push(new Emitter(i, cfgCopy.type, cfgCopy, this.rng));
+    });
   }
 
+  /**
+   * Compute Free-Space Path Loss (FSPL) and received power Prx in dBm
+   * FSPL = 20*log10(d_km) + 20*log10(f_GHz) + 92.45
+   */
+  _computeReceivedPowerDbm(emitter, band) {
+    const fGHz = RF_HARDWARE_SPECS.FREQ_MIN_GHZ + (band / this.numBands) * (RF_HARDWARE_SPECS.FREQ_MAX_GHZ - RF_HARDWARE_SPECS.FREQ_MIN_GHZ);
+    const dKm = Math.max(1.0, emitter.distanceKm);
+    const fspl = 20 * Math.log10(dKm) + 20 * Math.log10(fGHz) + 92.45;
+    return emitter.txPowerDbm - fspl;
+  }
+
+  /**
+   * Advance one discrete mission time slot (50 microseconds)
+   */
   step() {
     const activity = new Array(this.numBands).fill(false);
+    const snrPerBand = new Array(this.numBands).fill(-Infinity);
+    const powerDbmPerBand = new Array(this.numBands).fill(-Infinity);
+    const maxThreatPerBand = new Array(this.numBands).fill(0);
+    const activeEmitters = [];
+
     this.emitters.forEach(e => {
       const { band, active } = e.step(this.t, this.numBands);
-      if (active && band < this.numBands) activity[band] = true;
+      if (active && band < this.numBands) {
+        const prxDbm = this._computeReceivedPowerDbm(e, band);
+        const snr = prxDbm - RF_HARDWARE_SPECS.NOISE_FLOOR_DBM;
+        e.snrDb = snr;
+
+        // Sigmoidal receiver detection sensitivity: signals below threshold have reduced intercept probability
+        const pDetect = 1.0 / (1.0 + Math.exp(-(prxDbm - RF_HARDWARE_SPECS.DETECTION_THRESHOLD_DBM) / 2.0));
+        const detected = this.rng.random() < pDetect;
+
+        if (detected) {
+          activity[band] = true;
+          powerDbmPerBand[band] = Math.max(powerDbmPerBand[band], prxDbm);
+          snrPerBand[band] = Math.max(snrPerBand[band], snr);
+          maxThreatPerBand[band] = Math.max(maxThreatPerBand[band], e.threatLevel);
+
+          activeEmitters.push({
+            id: e.id,
+            type: e.type,
+            band,
+            threatLevel: e.threatLevel,
+            snrDb: snr,
+            powerDbm: prxDbm,
+          });
+        }
+      }
     });
 
-    // Simulate occasional thermal noise spikes exceeding receiver detection threshold
+    // Thermal noise spikes exceeding detection threshold (CFAR false alarm)
     const noise = new Array(this.numBands).fill(false);
     for (let b = 0; b < this.numBands; b++) {
       if (!activity[b] && this.rng.random() < this.noiseProb) {
@@ -2180,7 +2283,27 @@ class RFEnvironment {
     if (this.history.length >= this.maxHistory) this.history.shift();
     this.history.push([...activity]);
     this.t++;
-    return { activity, noise };
+
+    return {
+      activity,
+      noise,
+      snrPerBand,
+      powerDbmPerBand,
+      maxThreatPerBand,
+      activeEmitters,
+    };
+  }
+
+  /**
+   * Called by a receiver when it dwells on a channel.
+   * Informs active emitters of interception (triggers reactive evasive hopping for hostile agile threats).
+   */
+  notifyReceiverDwell(band) {
+    this.emitters.forEach(e => {
+      if (e.currentBand === band && e.state) {
+        e.onIntercepted(this.numBands);
+      }
+    });
   }
 
   reset() {
@@ -2204,6 +2327,10 @@ class RFEnvironment {
       type: e.type,
       band: e.currentBand,
       active: e.state,
+      threatLevel: e.threatLevel,
+      txPowerDbm: e.txPowerDbm,
+      distanceKm: e.distanceKm,
+      snrDb: e.snrDb,
       config: e.config,
     }));
   }
@@ -2411,6 +2538,57 @@ class OptimalPeriodicEstimator {
 
     return bestB;
   }
+
+  /**
+   * Forward-Looking Prediction Engine:
+   * Predicts intercept opportunities and expected arrival slots over a future horizon.
+   * Enables ES scheduler to project intercept times and interception ratios before dwell.
+   * @param {number} horizon - Number of future time steps to forecast (default: 10)
+   * @returns {Object} Forecast containing predicted hits, expected arrival times, and confidence
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const predictions = [];
+    let expectedIntercepts = 0;
+
+    for (let b = 0; b < this.numBands; b++) {
+      const T = this.estimatedPeriod[b];
+      const phi = this.estimatedPhase[b];
+      const conf = this.confidence[b];
+      if (T !== null && phi !== null && conf >= 0.25) {
+        const arrivalSlots = [];
+        for (let dt = 1; dt <= horizon; dt++) {
+          const tFuture = curT + dt;
+          const slot = ((tFuture - phi) % T + T) % T;
+          if (slot === 0) {
+            arrivalSlots.push({ tFuture, dt });
+          }
+        }
+        if (arrivalSlots.length > 0) {
+          const nextArrival = arrivalSlots[0];
+          predictions.push({
+            band: b,
+            expectedArrivalStep: nextArrival.tFuture,
+            timeToNextIntercept: nextArrival.dt,
+            period: T,
+            confidence: conf,
+          });
+          expectedIntercepts += arrivalSlots.length * conf;
+        }
+      }
+    }
+
+    predictions.sort((a, b) => a.timeToNextIntercept - b.timeToNextIntercept);
+    const predictedInterceptionRatio = horizon > 0 ? expectedIntercepts / horizon : 0;
+
+    return {
+      currentStep: curT,
+      horizon,
+      predictions,
+      predictedInterceptionRatio: Math.min(1.0, predictedInterceptionRatio),
+      expectedInterceptCount: expectedIntercepts,
+    };
+  }
 }
 
 // ─── 2. Full-Spectrum Belief-State Q-Learning Agent ───────────────────────────
@@ -2424,7 +2602,7 @@ class QLearningAgent {
     this.epsilonMin = config.epsilonMin ?? 0.05;
     this.epsilonDecay = config.epsilonDecay ?? 0.996;
     this.evalMode = config.evalMode ?? false; // Freeze weights in eval mode
-    this.numFeatures = 5;
+    this.numFeatures = 6;
 
     // Linear weights per band: [numBands][numFeatures]
     this.weights = Array.from({ length: numBands }, () => new Float64Array(this.numFeatures).fill(0.1));
@@ -2432,6 +2610,7 @@ class QLearningAgent {
     this.hitCounts = new Array(numBands).fill(0);
     this.lastDwellStep = new Array(numBands).fill(0);
     this.consecutiveMisses = new Array(numBands).fill(0);
+    this.lastActionBand = 0;
 
     this.totalReward = 0;
     this.rewardHistory = [];
@@ -2453,8 +2632,9 @@ class QLearningAgent {
     const empiricalRate = (this.hitCounts[band] + 0.5) / (this.dwellCounts[band] + 1.0);
     const missPenalty = Math.min(1.0, this.consecutiveMisses[band] / 4.0);
     const urgency = staleness * empiricalRate;
+    const hopPenalty = Math.abs(band - this.lastActionBand) / this.numBands;
     const bias = 1.0;
-    return [staleness, empiricalRate, urgency, missPenalty, bias];
+    return [staleness, empiricalRate, urgency, missPenalty, hopPenalty, bias];
   }
 
   /** Compute action-value Q(s, band) = w_band^T * phi(band) */
@@ -2501,6 +2681,7 @@ class QLearningAgent {
     const curT = t !== null ? t : this.currentStep;
     this.dwellCounts[actionBand]++;
     this.lastDwellStep[actionBand] = curT;
+    this.lastActionBand = actionBand;
 
     const wasHit = (activity && activity[actionBand]) || reward > 0;
     if (wasHit) {
@@ -2550,11 +2731,43 @@ class QLearningAgent {
     this.hitCounts = new Array(this.numBands).fill(0);
     this.lastDwellStep = new Array(this.numBands).fill(0);
     this.consecutiveMisses = new Array(this.numBands).fill(0);
+    this.lastActionBand = 0;
     this.totalReward = 0;
     this.rewardHistory = [];
     this.epsilon = 1.0;
     this.steps = 0;
     this.currentStep = 0;
+  }
+
+  /**
+   * Forward-Looking Prediction Engine:
+   * Uses learned Q-values and staleness dynamics to project next high-probability intercept bands.
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const bandScores = [];
+    for (let b = 0; b < this.numBands; b++) {
+      const q = this.computeQ(b, curT);
+      const empiricalRate = (this.hitCounts[b] + 0.5) / (this.dwellCounts[b] + 1.0);
+      const staleness = (curT - this.lastDwellStep[b]);
+      bandScores.push({
+        band: b,
+        qValue: q,
+        empiricalRate,
+        staleness,
+        confidence: Math.min(1.0, this.dwellCounts[b] / 15.0),
+      });
+    }
+    bandScores.sort((a, b) => b.qValue - a.qValue);
+    const topCandidates = bandScores.slice(0, 3);
+    const avgTopRate = topCandidates.reduce((sum, c) => sum + c.empiricalRate, 0) / topCandidates.length;
+
+    return {
+      currentStep: curT,
+      horizon,
+      topCandidates,
+      predictedInterceptionRatio: Math.min(1.0, avgTopRate),
+    };
   }
 
   /** Returns flat N x N representation for UI heatmap visualizer */
@@ -2646,6 +2859,150 @@ class UCBAgent {
     this.rewardHistory = [];
   }
 }
+
+// ─── 4. Restless Multi-Armed Bandit (Whittle Index Policy) ───────────────────
+/**
+ * Whittle Index Policy for Restless Multi-Armed Bandit (RMAB) Spectrum Search.
+ * Models each frequency channel as an evolving two-state Markov process:
+ * - State 1: Radiating (Active)
+ * - State 0: Silent (Idle)
+ * Even when unobserved, channels transition according to estimated rates P(0->1) and P(1->1).
+ * The Whittle index quantifies the marginal subsidy for passivity:
+ * W_b(pi_b, tau_b) = Threat_b * [ pi_b(t) + c * sqrt(ln(t)/N_b) ] - C_retune * |b - b_current| / N
+ */
+class WhittleIndexAgent {
+  constructor(numBands, config = {}, rng = globalRNG) {
+    this.numBands = numBands;
+    this.rng = rng;
+    this.explorationConst = config.explorationConst ?? 1.2;
+    this.retuneWeight = config.retuneWeight ?? 0.15;
+    this.reset();
+  }
+
+  reset() {
+    this.dwellCounts = new Array(this.numBands).fill(0);
+    this.hitCounts = new Array(this.numBands).fill(0);
+    this.lastDwellStep = new Array(this.numBands).fill(0);
+    this.lastObservedState = new Array(this.numBands).fill(false);
+    this.threatEstimates = new Array(this.numBands).fill(1.0);
+    this.p01 = new Array(this.numBands).fill(0.15); // P(idle -> active)
+    this.p11 = new Array(this.numBands).fill(0.40); // P(active -> active)
+    this.currentStep = 0;
+    this.lastTunedBand = 0;
+    this.totalReward = 0;
+    this.rewardHistory = [];
+  }
+
+  /**
+   * Compute restless Markov belief state pi_b(t) = P(channel b is active at time t)
+   */
+  getBelief(b, t) {
+    const tau = Math.max(0, t - this.lastDwellStep[b]);
+    const pi0 = this.lastObservedState[b] ? 1.0 : 0.0;
+    const p01 = this.p01[b];
+    const p10 = Math.max(0.01, 1.0 - this.p11[b]);
+    const stationaryProb = p01 / (p01 + p10);
+
+    // Dynamic Markov propagation across tau idle steps
+    const lambda = 1.0 - p01 - p10;
+    return stationaryProb + Math.pow(lambda, tau) * (pi0 - stationaryProb);
+  }
+
+  /**
+   * Compute closed-form Whittle index for channel b
+   */
+  computeWhittleIndex(b, currentBand, t) {
+    const belief = this.getBelief(b, t);
+    const n = this.dwellCounts[b];
+    const threatMult = this.threatEstimates[b];
+    const exploration = Math.sqrt((2 * Math.log(t + 2)) / (n + 1));
+    const retunePenalty = this.retuneWeight * (Math.abs(b - currentBand) / this.numBands);
+
+    // Whittle index: threat-scaled active belief + exploration bonus - retune latency subsidy
+    return (threatMult * (belief + this.explorationConst * exploration)) - retunePenalty;
+  }
+
+  selectBand(currentBand = 0, t = 0) {
+    this.currentStep = t;
+    this.lastTunedBand = currentBand;
+
+    // Ensure all channels are initially probed
+    for (let b = 0; b < this.numBands; b++) {
+      if (this.dwellCounts[b] === 0) return b;
+    }
+
+    let maxIndex = -Infinity;
+    let bestBands = [];
+
+    for (let b = 0; b < this.numBands; b++) {
+      const idx = this.computeWhittleIndex(b, currentBand, t);
+      if (idx > maxIndex) {
+        maxIndex = idx;
+        bestBands = [b];
+      } else if (Math.abs(idx - maxIndex) < 1e-6) {
+        bestBands.push(b);
+      }
+    }
+
+    return bestBands[this.rng.randInt(0, bestBands.length - 1)];
+  }
+
+  update(band, reward, activity = null, t = null, envDetails = null) {
+    const curT = t !== null ? t : this.currentStep;
+    const wasHit = (activity && activity[band]) || reward > 0;
+
+    // Update transition statistics
+    const prevObs = this.lastObservedState[band];
+    if (this.dwellCounts[band] > 0) {
+      if (!prevObs && wasHit) {
+        this.p01[band] = 0.9 * this.p01[band] + 0.1 * 1.0;
+      } else if (prevObs && wasHit) {
+        this.p11[band] = 0.9 * this.p11[band] + 0.1 * 1.0;
+      }
+    }
+
+    this.dwellCounts[band]++;
+    if (wasHit) this.hitCounts[band]++;
+    this.lastDwellStep[band] = curT;
+    this.lastObservedState[band] = wasHit;
+
+    if (envDetails && envDetails.maxThreatPerBand && envDetails.maxThreatPerBand[band] > 0) {
+      this.threatEstimates[band] = Math.max(1.0, envDetails.maxThreatPerBand[band] / 2.0);
+    }
+
+    this.totalReward += reward;
+    this.rewardHistory.push(this.totalReward);
+  }
+
+  /**
+   * Forward-Looking Prediction: forecast high-probability intercept channels over horizon
+   */
+  predictNextIntercepts(horizon = 10) {
+    const curT = this.currentStep;
+    const predictions = [];
+    for (let b = 0; b < this.numBands; b++) {
+      const belief = this.getBelief(b, curT);
+      const threat = this.threatEstimates[b];
+      predictions.push({
+        band: b,
+        beliefActive: belief,
+        threatLevel: threat,
+        expectedScore: belief * threat,
+      });
+    }
+    predictions.sort((a, b) => b.expectedScore - a.expectedScore);
+    const topCandidates = predictions.slice(0, 3);
+    const predictedInterceptionRatio = topCandidates.reduce((s, c) => s + c.beliefActive, 0) / topCandidates.length;
+
+    return {
+      currentStep: curT,
+      horizon,
+      topCandidates,
+      predictedInterceptionRatio: Math.min(1.0, predictedInterceptionRatio),
+    };
+  }
+}
+
 
 
 // ==========================================
@@ -2780,9 +3137,36 @@ class QLearningStrategy {
   getAgent() { return this.agent; }
 }
 
+class WhittleIndexStrategy {
+  constructor(numBands, rng = new SeededRNG(42)) {
+    this.numBands = numBands;
+    this.agent = new WhittleIndexAgent(numBands, {}, rng);
+    this.currentBand = 0;
+    this.chosenAction = 0;
+    this.name = 'Whittle-Index (Restless MAB)';
+    this.color = '#10b981';
+    this.description = 'Restless Multi-Armed Bandit with dynamic Markov belief state, threat-weighted index, and retune penalty.';
+  }
+  selectBand(t = 0) {
+    this.chosenAction = this.agent.selectBand(this.currentBand, t);
+    return this.chosenAction;
+  }
+  update(actionBand, reward, activity, t = 0, envDetails = null) {
+    this.agent.update(actionBand, reward, activity, t, envDetails);
+    this.currentBand = actionBand;
+  }
+  reset() {
+    this.agent.reset();
+    this.currentBand = 0;
+    this.chosenAction = 0;
+  }
+  getAgent() { return this.agent; }
+}
+
 function createAllStrategies(numBands, seed = 42) {
   const rngRandom = new SeededRNG(seed + 101);
   const rngQ = new SeededRNG(seed + 202);
+  const rngWhittle = new SeededRNG(seed + 303);
 
   return [
     new SequentialStrategy(numBands),
@@ -2791,6 +3175,7 @@ function createAllStrategies(numBands, seed = 42) {
     new PeriodicCoincidenceStrategy(numBands),
     new UCBStrategy(numBands),
     new QLearningStrategy(numBands, rngQ),
+    new WhittleIndexStrategy(numBands, rngWhittle),
   ];
 }
 
@@ -2827,13 +3212,22 @@ class MetricsTracker {
     this.totalSamples = 0;       // Total discrete dwell steps
     this.interceptTimes = [];    // Latency from emission start to intercept
     this.emissionStartTimes = {};// bandIdx -> start step
+    this.lastTunedBand = 0;
+    this.totalRetuneTimeUs = 0;  // Cumulative receiver retune/settling latency (microseconds)
     this.rewardHistory = [];
     this.pdHistory = [];
     this.interceptRateHistory = [];
     this.interceptTimeHistory = [];
     this.cpcHistory = [];
     this.cumulativeReward = 0;
+    this.threatWeightedReward = 0;
     this.lastActivity = [];
+    this.interceptedSnrs = [];
+
+    // Per-emitter-type operational breakdown
+    this.hitsByType = { periodic: 0, spatial_scan: 0, agile: 0, burst: 0, intermittent: 0 };
+    this.transmissionsByType = { periodic: 0, spatial_scan: 0, agile: 0, burst: 0, intermittent: 0 };
+    this.interceptTimesByType = { periodic: [], spatial_scan: [], agile: [], burst: [], intermittent: [] };
   }
 
   /**
@@ -2842,14 +3236,30 @@ class MetricsTracker {
    * @param {boolean[]} activity - Ground truth: which channels are active
    * @param {number} t - Current mission time step
    * @param {boolean[]} [noise] - Optional noise spikes per channel
+   * @param {Object} [envDetails] - Detailed RF environment data: activeEmitters, maxThreatPerBand, snrPerBand
    */
-  record(band, activity, t, noise = null) {
+  record(band, activity, t, noise = null, envDetails = null) {
     this.totalSamples++;
     const anyActive = activity.some(v => v);
     const bandActive = activity[band];
     const noiseTriggered = noise && noise[band];
 
+    // Hardware retune / PLL settling latency penalty (2.5 us per channel distance)
+    const hopDistance = Math.abs(band - this.lastTunedBand);
+    const retuneLatencyUs = hopDistance * 2.5;
+    this.totalRetuneTimeUs += retuneLatencyUs;
+    this.lastTunedBand = band;
+
     if (anyActive) this.totalTransmissions++;
+
+    // Track per-emitter active transmissions
+    if (envDetails && envDetails.activeEmitters) {
+      envDetails.activeEmitters.forEach(e => {
+        if (this.transmissionsByType[e.type] !== undefined) {
+          this.transmissionsByType[e.type]++;
+        }
+      });
+    }
 
     // Track emission pulse arrival times
     activity.forEach((active, b) => {
@@ -2859,13 +3269,39 @@ class MetricsTracker {
     });
 
     let reward = 0;
+    let threatMult = 1.0;
+    if (envDetails && envDetails.maxThreatPerBand && envDetails.maxThreatPerBand[band] > 0) {
+      threatMult = envDetails.maxThreatPerBand[band] / 2.0; // Scaled threat priority factor
+    }
+
     if (bandActive) {
       // True Positive (Hit): intercepted active radar pulse
       this.hits++;
-      reward = 1.0;
+      reward = 1.0 * threatMult;
+
       if (this.emissionStartTimes[band] !== undefined) {
-        this.interceptTimes.push(t - this.emissionStartTimes[band]);
+        const latency = t - this.emissionStartTimes[band];
+        this.interceptTimes.push(latency);
         delete this.emissionStartTimes[band];
+
+        // Record per-emitter-type latency
+        if (envDetails && envDetails.activeEmitters) {
+          const matched = envDetails.activeEmitters.find(e => e.band === band);
+          if (matched && this.interceptTimesByType[matched.type]) {
+            this.interceptTimesByType[matched.type].push(latency);
+          }
+        }
+      }
+
+      // Record per-emitter-type hit
+      if (envDetails && envDetails.activeEmitters) {
+        const matched = envDetails.activeEmitters.find(e => e.band === band);
+        if (matched && this.hitsByType[matched.type] !== undefined) {
+          this.hitsByType[matched.type]++;
+        }
+        if (matched && matched.snrDb !== undefined) {
+          this.interceptedSnrs.push(matched.snrDb);
+        }
       }
     } else {
       // Receiver tuned to a quiet channel
@@ -2882,11 +3318,20 @@ class MetricsTracker {
       // If transmissions were occurring simultaneously elsewhere in spectrum, log miss
       if (anyActive) {
         this.misses++;
-        reward -= 0.10;
+        let maxMissedThreat = 1.0;
+        if (envDetails && envDetails.maxThreatPerBand) {
+          maxMissedThreat = Math.max(...envDetails.maxThreatPerBand, 1.0) / 2.0;
+        }
+        reward -= 0.10 * maxMissedThreat;
       }
     }
 
+    // Retune switching cost penalty
+    const retuneCost = (hopDistance / 16) * 0.04;
+    reward -= retuneCost;
+
     this.cumulativeReward += reward;
+    this.threatWeightedReward += reward * threatMult;
     this.rewardHistory.push(this.cumulativeReward);
 
     if (this.totalTransmissions > 0) {
@@ -2942,25 +3387,67 @@ class MetricsTracker {
     return this.totalTransmissions > 0 ? this.misses / this.totalTransmissions : 0;
   }
 
+  /** Average Intercepted SNR in dB */
+  get avgReceivedSnrDb() {
+    if (this.interceptedSnrs.length === 0) return 15.0;
+    return this.interceptedSnrs.reduce((a, b) => a + b, 0) / this.interceptedSnrs.length;
+  }
+
+  /** Hardware retune efficiency ratio: DwellTime / (DwellTime + RetuneTime) */
+  get retuneEfficiency() {
+    const totalDwellUs = this.totalSamples * 50.0;
+    const totalUs = totalDwellUs + this.totalRetuneTimeUs;
+    return totalUs > 0 ? (totalDwellUs / totalUs) * 100 : 100;
+  }
+
+  /** Per-emitter-type breakdown of Pd */
+  get pdByType() {
+    const res = {};
+    for (const [type, txCount] of Object.entries(this.transmissionsByType)) {
+      const hits = this.hitsByType[type] || 0;
+      res[type] = txCount > 0 ? (hits / txCount) * 100 : 0;
+    }
+    return res;
+  }
+
+  /** Per-emitter-type breakdown of AITE (latency error in steps) */
+  get aiteByType() {
+    const res = {};
+    for (const [type, times] of Object.entries(this.interceptTimesByType)) {
+      res[type] = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    }
+    return res;
+  }
+
   getSummary() {
     return {
       name: this.name,
+      color: this.color,
       pd: this.pd,
       pfa: this.pfa,
       avgInterceptRate: this.avgInterceptRate,
       avgInterceptTimeError: this.avgInterceptTimeError,
       sensitivity: this.sensitivity,
       cpc: this.cpc,
-      missRate: this.missRate,
       hits: this.hits,
       misses: this.misses,
       falseAlarms: this.falseAlarms,
-      totalSamples: this.totalSamples,
+      trueNegatives: this.trueNegatives,
       cumulativeReward: this.cumulativeReward,
+      threatWeightedReward: this.threatWeightedReward,
+      avgReceivedSnrDb: this.avgReceivedSnrDb,
+      sensitivityDbm: -90.0, // Minimum detectable signal power specification
+      retuneEfficiency: this.retuneEfficiency,
+      totalDwellTimeMs: (this.totalSamples * 50.0) / 1000.0,
+      totalRetuneTimeMs: this.totalRetuneTimeUs / 1000.0,
+      pdByType: this.pdByType,
+      aiteByType: this.aiteByType,
+      hitsByType: this.hitsByType,
+      totalTransmissions: this.totalTransmissions,
+      totalSamples: this.totalSamples,
     };
   }
 }
-
 
 // ==========================================
 // Module: js/audio.js
@@ -3782,11 +4269,15 @@ function switchTab(tab) {
 
 // ─── Simulation Loop ──────────────────────────────────────────────────────────
 function stepOnce() {
-  const { activity, noise } = env.step();
+  const envResult = env.step();
+  const { activity, noise } = envResult;
   stepCount++;
 
   // 1. Human Operator step & audio synthesis
   const humanStep = duelController.step(activity, stepCount, noise, env.emitters);
+  if (humanStep && humanStep.band !== undefined) {
+    env.notifyReceiverDwell(humanStep.band);
+  }
 
   // Update channel key visual signals
   activity.forEach((active, b) => {
@@ -3805,8 +4296,9 @@ function stepOnce() {
   // 2. Each AI strategy independently picks a band and receives reward
   strategies.forEach((strat, i) => {
     const band = strat.selectBand(stepCount);
-    const reward = metrics[i].record(band, activity, stepCount, noise);
-    strat.update(band, reward, activity, stepCount);
+    env.notifyReceiverDwell(band);
+    const reward = metrics[i].record(band, activity, stepCount, noise, envResult);
+    strat.update(band, reward, activity, stepCount, envResult);
     receiverPositions[i].push(band);
     if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
   });
@@ -4384,7 +4876,7 @@ function renderEmitterTable() {
   }).join('');
 }
 
-// ─── Analysis Tab (All 7 Figures of Merit) ──────────────────────────────────────
+// ─── Analysis Tab (All Figures of Merit) ──────────────────────────────────────
 function renderAnalysis() {
   const tbody = document.getElementById('analysis-tbody');
   if (!tbody) return;
@@ -4402,6 +4894,8 @@ function renderAnalysis() {
       <td>${m.misses}</td>
       <td>${m.falseAlarms}</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
+      <td>${m.threatWeightedReward.toFixed(1)}</td>
+      <td>${m.retuneEfficiency.toFixed(1)}%</td>
     </tr>`;
   }).join('');
 }
@@ -4420,16 +4914,18 @@ function updateCompareSummaryTable() {
       <td>${(m.sensitivity * 100).toFixed(1)}%</td>
       <td>${m.cpc.toFixed(1)}%</td>
       <td>${m.cumulativeReward.toFixed(1)}</td>
+      <td>${m.threatWeightedReward.toFixed(1)}</td>
+      <td>${m.retuneEfficiency.toFixed(1)}%</td>
     </tr>`;
   }).join('');
 }
 
 // ─── CSV & Model Weight Exporters ─────────────────────────────────────────────
 function exportCSVReport() {
-  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward\n';
+  let csv = 'Strategy,Pd (%),Pfa (%),AIR (%),AITE (steps),Sensitivity (%),CPC (%),Hits,Misses,False Alarms,Reward,ThreatReward,RetuneEfficiency (%)\n';
   strategies.forEach((s, i) => {
     const m = metrics[i].getSummary();
-    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)}\n`;
+    csv += `"${s.name}",${(m.pd*100).toFixed(2)},${(m.pfa*100).toFixed(2)},${(m.avgInterceptRate*100).toFixed(2)},${m.avgInterceptTimeError.toFixed(2)},${(m.sensitivity*100).toFixed(2)},${m.cpc.toFixed(2)},${m.hits},${m.misses},${m.falseAlarms},${m.cumulativeReward.toFixed(2)},${m.threatWeightedReward.toFixed(2)},${m.retuneEfficiency.toFixed(2)}\n`;
   });
 
   const blob = new Blob([csv], { type: 'text/csv' });

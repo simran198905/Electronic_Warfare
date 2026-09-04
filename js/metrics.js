@@ -26,13 +26,22 @@ export class MetricsTracker {
     this.totalSamples = 0;       // Total discrete dwell steps
     this.interceptTimes = [];    // Latency from emission start to intercept
     this.emissionStartTimes = {};// bandIdx -> start step
+    this.lastTunedBand = 0;
+    this.totalRetuneTimeUs = 0;  // Cumulative receiver retune/settling latency (microseconds)
     this.rewardHistory = [];
     this.pdHistory = [];
     this.interceptRateHistory = [];
     this.interceptTimeHistory = [];
     this.cpcHistory = [];
     this.cumulativeReward = 0;
+    this.threatWeightedReward = 0;
     this.lastActivity = [];
+    this.interceptedSnrs = [];
+
+    // Per-emitter-type operational breakdown
+    this.hitsByType = { periodic: 0, spatial_scan: 0, agile: 0, burst: 0, intermittent: 0 };
+    this.transmissionsByType = { periodic: 0, spatial_scan: 0, agile: 0, burst: 0, intermittent: 0 };
+    this.interceptTimesByType = { periodic: [], spatial_scan: [], agile: [], burst: [], intermittent: [] };
   }
 
   /**
@@ -41,14 +50,30 @@ export class MetricsTracker {
    * @param {boolean[]} activity - Ground truth: which channels are active
    * @param {number} t - Current mission time step
    * @param {boolean[]} [noise] - Optional noise spikes per channel
+   * @param {Object} [envDetails] - Detailed RF environment data: activeEmitters, maxThreatPerBand, snrPerBand
    */
-  record(band, activity, t, noise = null) {
+  record(band, activity, t, noise = null, envDetails = null) {
     this.totalSamples++;
     const anyActive = activity.some(v => v);
     const bandActive = activity[band];
     const noiseTriggered = noise && noise[band];
 
+    // Hardware retune / PLL settling latency penalty (2.5 us per channel distance)
+    const hopDistance = Math.abs(band - this.lastTunedBand);
+    const retuneLatencyUs = hopDistance * 2.5;
+    this.totalRetuneTimeUs += retuneLatencyUs;
+    this.lastTunedBand = band;
+
     if (anyActive) this.totalTransmissions++;
+
+    // Track per-emitter active transmissions
+    if (envDetails && envDetails.activeEmitters) {
+      envDetails.activeEmitters.forEach(e => {
+        if (this.transmissionsByType[e.type] !== undefined) {
+          this.transmissionsByType[e.type]++;
+        }
+      });
+    }
 
     // Track emission pulse arrival times
     activity.forEach((active, b) => {
@@ -58,13 +83,39 @@ export class MetricsTracker {
     });
 
     let reward = 0;
+    let threatMult = 1.0;
+    if (envDetails && envDetails.maxThreatPerBand && envDetails.maxThreatPerBand[band] > 0) {
+      threatMult = envDetails.maxThreatPerBand[band] / 2.0; // Scaled threat priority factor
+    }
+
     if (bandActive) {
       // True Positive (Hit): intercepted active radar pulse
       this.hits++;
-      reward = 1.0;
+      reward = 1.0 * threatMult;
+
       if (this.emissionStartTimes[band] !== undefined) {
-        this.interceptTimes.push(t - this.emissionStartTimes[band]);
+        const latency = t - this.emissionStartTimes[band];
+        this.interceptTimes.push(latency);
         delete this.emissionStartTimes[band];
+
+        // Record per-emitter-type latency
+        if (envDetails && envDetails.activeEmitters) {
+          const matched = envDetails.activeEmitters.find(e => e.band === band);
+          if (matched && this.interceptTimesByType[matched.type]) {
+            this.interceptTimesByType[matched.type].push(latency);
+          }
+        }
+      }
+
+      // Record per-emitter-type hit
+      if (envDetails && envDetails.activeEmitters) {
+        const matched = envDetails.activeEmitters.find(e => e.band === band);
+        if (matched && this.hitsByType[matched.type] !== undefined) {
+          this.hitsByType[matched.type]++;
+        }
+        if (matched && matched.snrDb !== undefined) {
+          this.interceptedSnrs.push(matched.snrDb);
+        }
       }
     } else {
       // Receiver tuned to a quiet channel
@@ -81,11 +132,20 @@ export class MetricsTracker {
       // If transmissions were occurring simultaneously elsewhere in spectrum, log miss
       if (anyActive) {
         this.misses++;
-        reward -= 0.10;
+        let maxMissedThreat = 1.0;
+        if (envDetails && envDetails.maxThreatPerBand) {
+          maxMissedThreat = Math.max(...envDetails.maxThreatPerBand, 1.0) / 2.0;
+        }
+        reward -= 0.10 * maxMissedThreat;
       }
     }
 
+    // Retune switching cost penalty
+    const retuneCost = (hopDistance / 16) * 0.04;
+    reward -= retuneCost;
+
     this.cumulativeReward += reward;
+    this.threatWeightedReward += reward * threatMult;
     this.rewardHistory.push(this.cumulativeReward);
 
     if (this.totalTransmissions > 0) {
@@ -141,22 +201,64 @@ export class MetricsTracker {
     return this.totalTransmissions > 0 ? this.misses / this.totalTransmissions : 0;
   }
 
+  /** Average Intercepted SNR in dB */
+  get avgReceivedSnrDb() {
+    if (this.interceptedSnrs.length === 0) return 15.0;
+    return this.interceptedSnrs.reduce((a, b) => a + b, 0) / this.interceptedSnrs.length;
+  }
+
+  /** Hardware retune efficiency ratio: DwellTime / (DwellTime + RetuneTime) */
+  get retuneEfficiency() {
+    const totalDwellUs = this.totalSamples * 50.0;
+    const totalUs = totalDwellUs + this.totalRetuneTimeUs;
+    return totalUs > 0 ? (totalDwellUs / totalUs) * 100 : 100;
+  }
+
+  /** Per-emitter-type breakdown of Pd */
+  get pdByType() {
+    const res = {};
+    for (const [type, txCount] of Object.entries(this.transmissionsByType)) {
+      const hits = this.hitsByType[type] || 0;
+      res[type] = txCount > 0 ? (hits / txCount) * 100 : 0;
+    }
+    return res;
+  }
+
+  /** Per-emitter-type breakdown of AITE (latency error in steps) */
+  get aiteByType() {
+    const res = {};
+    for (const [type, times] of Object.entries(this.interceptTimesByType)) {
+      res[type] = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+    }
+    return res;
+  }
+
   getSummary() {
     return {
       name: this.name,
+      color: this.color,
       pd: this.pd,
       pfa: this.pfa,
       avgInterceptRate: this.avgInterceptRate,
       avgInterceptTimeError: this.avgInterceptTimeError,
       sensitivity: this.sensitivity,
       cpc: this.cpc,
-      missRate: this.missRate,
       hits: this.hits,
       misses: this.misses,
       falseAlarms: this.falseAlarms,
-      totalSamples: this.totalSamples,
+      trueNegatives: this.trueNegatives,
       cumulativeReward: this.cumulativeReward,
+      threatWeightedReward: this.threatWeightedReward,
+      avgReceivedSnrDb: this.avgReceivedSnrDb,
+      sensitivityDbm: -90.0, // Minimum detectable signal power specification
+      retuneEfficiency: this.retuneEfficiency,
+      totalDwellTimeMs: (this.totalSamples * 50.0) / 1000.0,
+      totalRetuneTimeMs: this.totalRetuneTimeUs / 1000.0,
+      pdByType: this.pdByType,
+      aiteByType: this.aiteByType,
+      hitsByType: this.hitsByType,
+      totalTransmissions: this.totalTransmissions,
+      totalSamples: this.totalSamples,
     };
   }
 }
-
