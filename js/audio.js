@@ -161,6 +161,10 @@ export class SIGINTAudioEngine {
     osc.connect(gain);
     gain.connect(this.toneGain);
 
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
+
     osc.start(now);
     osc.stop(now + 0.08);
   }
@@ -179,6 +183,10 @@ export class SIGINTAudioEngine {
 
     osc.connect(gain);
     gain.connect(this.toneGain);
+
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
 
     osc.start(now);
     osc.stop(now + 0.1);
@@ -200,6 +208,10 @@ export class SIGINTAudioEngine {
     osc.connect(gain);
     gain.connect(this.toneGain);
 
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
+
     osc.start(now);
     osc.stop(now + 0.08);
   }
@@ -219,6 +231,10 @@ export class SIGINTAudioEngine {
       osc.connect(gain);
       gain.connect(this.toneGain);
 
+      osc.onended = () => {
+        try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+      };
+
       osc.start(now + offset);
       osc.stop(now + offset + 0.02);
     });
@@ -236,6 +252,10 @@ export class SIGINTAudioEngine {
 
     osc.connect(gain);
     gain.connect(this.toneGain);
+
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
 
     osc.start(now);
     osc.stop(now + 0.02);
@@ -256,6 +276,10 @@ export class SIGINTAudioEngine {
 
     osc.connect(gain);
     gain.connect(this.masterGain);
+
+    osc.onended = () => {
+      try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+    };
 
     osc.start(t);
     osc.stop(t + 0.09);

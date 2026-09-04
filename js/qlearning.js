@@ -8,115 +8,179 @@
 import { globalRNG } from './simulator.js';
 
 // ─── 1. Optimal Periodic Scan Estimator (Radar PRI & Phase Tracker) ────────────
+// ─── 1. Optimal Periodic Scan Estimator (Radar PRI & Phase Tracker) ────────────
 export class OptimalPeriodicEstimator {
   constructor(numBands, config = {}) {
     this.numBands = numBands;
     this.minSamplesForFit = config.minSamplesForFit ?? 3;
-    this.maxTrackedPeriod = config.maxTrackedPeriod ?? 40;
+    this.maxTrackedPeriod = config.maxTrackedPeriod ?? 35;
     this.reset();
   }
 
   reset() {
-    // Per-band arrival timestamps history
-    this.pulseHistory = Array.from({ length: this.numBands }, () => []);
-    // Estimated period T_hat and phase phi_hat
+    // Per-band rising edge arrival timestamps (pulse onset)
+    this.risingEdges = Array.from({ length: this.numBands }, () => []);
+    this.lastHitStep = new Array(this.numBands).fill(-1);
     this.estimatedPeriod = new Array(this.numBands).fill(null);
     this.estimatedPhase = new Array(this.numBands).fill(null);
+    this.estimatedWindow = new Array(this.numBands).fill(1);
+    this.maxBurstLength = new Array(this.numBands).fill(1);
+    this.currentBurstLength = new Array(this.numBands).fill(0);
     this.confidence = new Array(this.numBands).fill(0);
+    this.consecutiveMisses = new Array(this.numBands).fill(0);
+    this.lastPredictedBand = null;
+    this.dwellCounts = new Array(this.numBands).fill(0);
+    this.hitCounts = new Array(this.numBands).fill(0);
     this.currentStep = 0;
   }
 
   /**
-   * Observe whether the currently tuned band was active at time t
-   * @param {number} band - Channel index
-   * @param {boolean} wasHit - True if signal detected
-   * @param {number} t - Current time step
+   * Observe whether the currently tuned band was active at time t.
+   * Tracks rising edges (first pulse in burst) to isolate true fundamental PRI
+   * from intra-burst dwell steps.
    */
   observe(band, wasHit, t) {
     this.currentStep = t;
+    this.dwellCounts[band]++;
+
     if (wasHit) {
-      const history = this.pulseHistory[band];
-      // Avoid duplicate timestamps
-      if (history.length === 0 || history[history.length - 1] !== t) {
-        history.push(t);
-        if (history.length > 30) history.shift();
+      this.hitCounts[band]++;
+      const lastHit = this.lastHitStep[band];
+      const isRisingEdge = (lastHit === -1 || t > lastHit + 1);
+
+      if (isRisingEdge) {
+        this.risingEdges[band].push(t);
+        if (this.risingEdges[band].length > 30) this.risingEdges[band].shift();
+        this.currentBurstLength[band] = 1;
+      } else {
+        this.currentBurstLength[band] = (this.currentBurstLength[band] || 1) + 1;
+        this.maxBurstLength[band] = Math.max(this.maxBurstLength[band] || 1, this.currentBurstLength[band]);
       }
 
-      // If we have at least 3 pulses, compute period & phase estimate
-      if (history.length >= this.minSamplesForFit) {
+      this.lastHitStep[band] = t;
+      this.consecutiveMisses[band] = 0;
+
+      if (this.lastPredictedBand === band) {
+        this.confidence[band] = Math.min(1.0, this.confidence[band] + 0.15);
+      }
+
+      if (this.risingEdges[band].length >= this.minSamplesForFit) {
         this._estimatePeriodPhase(band);
       }
-    }
-  }
-
-  _estimatePeriodPhase(band) {
-    const history = this.pulseHistory[band];
-    if (history.length < 2) return;
-
-    // Calculate inter-pulse arrival intervals (delta t)
-    const deltas = [];
-    for (let i = 1; i < history.length; i++) {
-      const dt = history[i] - history[i - 1];
-      if (dt > 0 && dt <= this.maxTrackedPeriod) {
-        deltas.push(dt);
+    } else {
+      // Receiver was on this band and got NO signal
+      if (this.lastPredictedBand === band) {
+        this.consecutiveMisses[band] = (this.consecutiveMisses[band] || 0) + 1;
+        if (this.consecutiveMisses[band] >= 3) {
+          this.confidence[band] *= 0.5; // Degrade confidence on successive misses
+        }
+        if (this.consecutiveMisses[band] >= 6) {
+          // Invalidate stale or erroneous estimate
+          this.estimatedPeriod[band] = null;
+          this.estimatedPhase[band] = null;
+          this.confidence[band] = 0;
+          this.risingEdges[band] = [];
+          this.consecutiveMisses[band] = 0;
+        }
       }
     }
-
-    if (deltas.length === 0) return;
-
-    // Mode / Median histogram for dominant fundamental period
-    const counts = {};
-    deltas.forEach(d => { counts[d] = (counts[d] || 0) + 1; });
-    let bestDelta = deltas[0], maxCount = 0;
-    Object.keys(counts).forEach(d => {
-      const numD = parseInt(d);
-      if (counts[d] > maxCount) {
-        maxCount = counts[d];
-        bestDelta = numD;
-      }
-    });
-
-    this.estimatedPeriod[band] = bestDelta;
-    // Phase phi: remainder modulo estimated period
-    const lastTime = history[history.length - 1];
-    this.estimatedPhase[band] = lastTime % bestDelta;
-    this.confidence[band] = Math.min(1.0, history.length / 6);
   }
 
   /**
-   * Predict which band has an incoming periodic pulse at time t
-   * If multiple bands are expected, prioritize the one with highest confidence or earliest deadline
+   * Estimates fundamental period T and phase phi via modular congruence histogram.
+   * Avoids intra-burst harmonic distortion.
    */
-  selectBand(t, fallbackBand = 0) {
-    let bestBand = null;
-    let maxConf = -1;
+  _estimatePeriodPhase(band) {
+    const edges = this.risingEdges[band];
+    if (edges.length < this.minSamplesForFit) return;
 
-    for (let b = 0; b < this.numBands; b++) {
-      const T = this.estimatedPeriod[b];
-      const phi = this.estimatedPhase[b];
-      if (T !== null && phi !== null) {
-        // Check if pulse is expected at time t
-        if (t % T === phi) {
-          if (this.confidence[b] > maxConf) {
-            maxConf = this.confidence[b];
-            bestBand = b;
-          }
+    let bestT = null;
+    let bestPhi = null;
+    let bestScore = 0;
+
+    // Evaluate candidate fundamental periods from 4 to maxTrackedPeriod
+    for (let T = 4; T <= this.maxTrackedPeriod; T++) {
+      const remCounts = {};
+      for (const t of edges) {
+        const r = ((t % T) + T) % T;
+        remCounts[r] = (remCounts[r] || 0) + 1;
+      }
+
+      let maxCount = 0;
+      let dominantPhi = 0;
+      for (const [r, count] of Object.entries(remCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantPhi = parseInt(r, 10);
+        }
+      }
+
+      const score = maxCount / edges.length;
+      if (score >= 0.70) {
+        if (bestT === null || score > bestScore + 0.1) {
+          bestT = T;
+          bestPhi = dominantPhi;
+          bestScore = score;
         }
       }
     }
 
-    if (bestBand !== null) return bestBand;
+    if (bestT !== null) {
+      this.estimatedPeriod[band] = bestT;
+      this.estimatedPhase[band] = bestPhi;
+      this.estimatedWindow[band] = Math.min(bestT - 1, Math.max(1, this.maxBurstLength[band] || 1));
+      this.confidence[band] = Math.min(1.0, 0.4 + bestScore * 0.5);
+    }
+  }
 
-    // If no periodic pulse expected at exact step t, explore channels with fewest observations
-    let minObs = Infinity, leastExploredBand = fallbackBand;
+  /**
+   * Selects next band:
+   * 1. Priority to channels where an estimated periodic pulse is due at step t
+   * 2. When no periodic pulse is expected: active UCB exploration across channels
+   */
+  selectBand(t, fallbackBand = 0) {
+    // 1. Check if any estimated periodic emitter is active at step t
+    let candidateBands = [];
     for (let b = 0; b < this.numBands; b++) {
-      const obsCount = this.pulseHistory[b].length;
-      if (obsCount < minObs) {
-        minObs = obsCount;
-        leastExploredBand = b;
+      const T = this.estimatedPeriod[b];
+      const phi = this.estimatedPhase[b];
+      const W = this.estimatedWindow[b] || 1;
+      if (T !== null && phi !== null && this.confidence[b] >= 0.3) {
+        const slot = ((t - phi) % T + T) % T;
+        if (slot < W) {
+          // Give higher urgency to the rising edge (slot 0)
+          const urgency = (slot === 0 ? 1.5 : 1.0) * this.confidence[b];
+          candidateBands.push({ band: b, urgency });
+        }
       }
     }
-    return leastExploredBand;
+
+    if (candidateBands.length > 0) {
+      candidateBands.sort((a, b) => b.urgency - a.urgency);
+      this.lastPredictedBand = candidateBands[0].band;
+      return this.lastPredictedBand;
+    }
+
+    // 2. Idle steps: adaptive UCB exploration to discover unmapped emitters
+    this.lastPredictedBand = null;
+    let bestScore = -Infinity;
+    let bestB = fallbackBand;
+
+    for (let b = 0; b < this.numBands; b++) {
+      const n = this.dwellCounts[b];
+      if (n === 0) {
+        return b; // Initial exploration pass
+      }
+      const exploitation = this.hitCounts[b] / n;
+      const exploration = Math.sqrt((2 * Math.log(t + 1)) / n);
+      const score = exploitation + 1.2 * exploration;
+      if (score > bestScore) {
+        bestScore = score;
+        bestB = b;
+      }
+    }
+
+    return bestB;
   }
 }
 

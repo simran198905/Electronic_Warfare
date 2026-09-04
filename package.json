@@ -1,0 +1,22 @@
+{
+  "name": "ew-smartscan",
+  "version": "2.0.0",
+  "description": "Electronic Support (ES) Receiver Scheduler: Reinforcement Learning (Q-Learning / UCB) vs. Classical Heuristics for Radar Spectrum Surveillance",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "eval": "node evaluate.js",
+    "start": "python3 server.py"
+  },
+  "keywords": [
+    "electronic-warfare",
+    "sigint",
+    "reinforcement-learning",
+    "q-learning",
+    "radar",
+    "esm",
+    "spectrum-management"
+  ],
+  "author": "Simran Kumari",
+  "license": "MIT"
+}

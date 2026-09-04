@@ -127,10 +127,10 @@ export class MetricsTracker {
     return totalPositives > 0 ? this.hits / totalPositives : 0;
   }
 
-  /** Percentage of Correct Decisions / Predictions (CPC / Accuracy) */
+  /** Percentage of Correct Decisions / Predictions (CPC / Dwell Accuracy): (Hits + TrueNegatives) / TotalSamples */
   get cpc() {
     if (this.totalSamples === 0) return 0;
-    return ((this.hits + this.trueNegatives) / (this.totalSamples + this.misses)) * 100;
+    return ((this.hits + this.trueNegatives) / this.totalSamples) * 100;
   }
 
   get missRate() {
