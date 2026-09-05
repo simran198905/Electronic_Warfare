@@ -8,6 +8,14 @@ import { OperatorDuelController } from './duel.js';
 let NUM_BANDS = 16;
 const WATERFALL_COLS = 80; // time steps visible in waterfall
 
+export const EMITTER_COLORS = {
+  periodic: '#60a5fa',      // Bright Radar Blue
+  spatial_scan: '#22d3ee',  // Cyan (Rotating Radar)
+  agile: '#fbbf24',         // Golden Yellow / Amber (Agile Hopper)
+  burst: '#f87171',         // Coral / Red (LPI Burst)
+  intermittent: '#c084fc',  // Purple / Violet (Intermittent Beacon)
+};
+
 let currentSeed = 42;
 let isEvalMode = false;
 let env = new RFEnvironment({ numBands: NUM_BANDS, seed: currentSeed });
@@ -389,11 +397,61 @@ function stepOnce() {
     env.notifyReceiverDwell(humanStep.band);
   }
 
-  // Update channel key visual signals
+  // 2. Each AI strategy independently picks a band and receives reward
+  const tunedBands = {};
+  strategies.forEach((strat, i) => {
+    const band = strat.selectBand(stepCount);
+    tunedBands[i] = band;
+    env.notifyReceiverDwell(band);
+    const reward = metrics[i].record(band, activity, stepCount, noise, envResult);
+    strat.update(band, reward, activity, stepCount, envResult);
+    receiverPositions[i].push(band);
+    if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
+  });
+
+  // Color code active dots based on the exact legend:
+  // - Q-Learning Tuned Channel: #3b82f6 (Blue)
+  // - Periodic Tracker Tuned Channel: #06b6d4 (Cyan)
+  // - UCB Bandit Tuned Channel: #8b5cf6 (Purple)
+  // - Sequential Tuned Channel: #ef4444 (Red)
+  // - Active Radar / Emitter Signal: #10b981 (Green)
+  const qIdx = strategies.findIndex(s => s.name.includes('Q-Learning'));
+  const pIdx = strategies.findIndex(s => s.name.includes('Periodic'));
+  const seqIdx = strategies.findIndex(s => s.name.includes('Sequential'));
+  const ucbIdx = strategies.findIndex(s => s.name.includes('UCB'));
+
+  const bandColors = new Array(env.numBands).fill(null);
+  for (let b = 0; b < env.numBands; b++) {
+    if (activity[b]) {
+      if (tunedBands[qIdx] === b) {
+        bandColors[b] = '#3b82f6'; // Q-Learning Tuned Channel
+      } else if (tunedBands[pIdx] === b) {
+        bandColors[b] = '#06b6d4'; // Periodic Tracker Tuned Channel
+      } else if (tunedBands[ucbIdx] === b) {
+        bandColors[b] = '#8b5cf6'; // UCB Bandit Tuned Channel
+      } else if (tunedBands[seqIdx] === b) {
+        bandColors[b] = '#ef4444'; // Sequential Tuned Channel
+      } else {
+        bandColors[b] = '#10b981'; // Active Radar / Emitter Signal
+      }
+    }
+  }
+
+  // Update channel key visual signals with tuned/intercept colors
   activity.forEach((active, b) => {
     const dot = document.getElementById(`chdot-${b}`);
     const key = document.getElementById(`chkey-${b}`);
-    if (dot) dot.classList.toggle('live', active);
+    if (dot) {
+      dot.classList.toggle('live', active);
+      if (active) {
+        const c = bandColors[b] || '#10b981';
+        dot.style.backgroundColor = c;
+        dot.style.boxShadow = `0 0 8px ${c}`;
+      } else {
+        dot.style.backgroundColor = '';
+        dot.style.boxShadow = '';
+      }
+    }
     if (key) {
       key.classList.toggle('rf-transmitting', active);
       if (b === humanStep.band && humanStep.wasHit) {
@@ -403,19 +461,10 @@ function stepOnce() {
     }
   });
 
-  // 2. Each AI strategy independently picks a band and receives reward
-  strategies.forEach((strat, i) => {
-    const band = strat.selectBand(stepCount);
-    env.notifyReceiverDwell(band);
-    const reward = metrics[i].record(band, activity, stepCount, noise, envResult);
-    strat.update(band, reward, activity, stepCount, envResult);
-    receiverPositions[i].push(band);
-    if (receiverPositions[i].length > WATERFALL_COLS) receiverPositions[i].shift();
-  });
-
-  // Waterfall buffer
+  // Waterfall buffer with color coding per frame
   waterfallBuffer.push({
     activity: [...activity],
+    colors: [...bandColors],
     receivers: strategies.map((_, i) => receiverPositions[i].slice(-1)[0]),
   });
   if (waterfallBuffer.length > WATERFALL_COLS) waterfallBuffer.shift();
@@ -556,13 +605,14 @@ function drawWaterfall() {
     ctx.stroke();
   }
 
-  // Draw activity raster
+  // Draw activity raster with emitter-specific colors
   waterfallBuffer.forEach((frame, col) => {
     frame.activity.forEach((active, band) => {
       const x = col * cellW;
       const y = (numBands - 1 - band) * cellH;
       if (active) {
-        ctx.fillStyle = '#10b981';
+        const pulseColor = (frame.colors && frame.colors[band]) || '#10b981';
+        ctx.fillStyle = pulseColor;
         ctx.fillRect(x + 0.5, y + 0.5, cellW - 0.5, cellH - 0.5);
       } else {
         ctx.fillStyle = 'rgba(14, 21, 36, 0.6)';
@@ -584,13 +634,17 @@ function drawWaterfall() {
     }
   });
 
-  // Draw Frequency Sub-Band Annotations
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
-  ctx.font = '10px JetBrains Mono, monospace';
+  // Draw Frequency Sub-Band Annotations (with text contrast shadow)
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.9)';
+  ctx.font = 'bold 10px JetBrains Mono, monospace';
   for (let b = 0; b < numBands; b++) {
     const y = (numBands - 1 - b) * cellH + cellH / 2 + 3.5;
     ctx.fillText(`CH${b.toString().padStart(2, '0')}`, 6, y);
   }
+  ctx.restore();
 }
 
 // ─── Metric Cards ─────────────────────────────────────────────────────────────
